@@ -10,6 +10,7 @@ using namespace std;
 
 char buf0[255];
 
+// All the varmaps show one global variable space.
 class varmap {
 	public:
 		
@@ -149,6 +150,137 @@ intValue getValue(string single_expr, varmap &vm) {
 	}
 	else {
 		return getValue(vm[single_expr], vm);	// So you have refrences
+	}
+}
+
+int priority(char op) {
+	switch (op) {
+	case ')':
+		return 5;
+		break;
+	case ':':
+		return 4;
+		break;
+	case '*': case '/': case '%':
+		return 3;
+		break;
+	case '+': case '-':
+		return 2;
+		break;
+	case '>': case '<': case '==':
+		return 1;
+		break;
+	case '(':
+		return 0;
+		break;
+	default:
+		return -1;
+	}
+}
+
+typedef long long							long64;
+
+// Please notice special meanings.
+intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
+	switch (op) {
+	case '(': case ')':
+		break;
+	case ':':
+		// As for this, 'first' should be direct var-name
+		return vm[first.str + ":" + second.str];
+		break;
+	case '*':
+		if (first.isNumeric) {
+			return first.numeric * second.numeric;
+		}
+		else {
+			string rep = "";
+			for (int cnt = 0; cnt < second.numeric; i++) {
+				rep += first.str;
+			}
+		}
+		break;
+	case '%':
+		return long64(first.numeric) % long64(second.numeric);
+		break;
+	case '/':
+		return first.numeric / second.numeric;
+		break;
+	case '+':
+		if (first.isNumeric) {
+			return first.numeric + second.numeric;
+		}
+		else {
+			return first.str + second.str;
+		}
+		break;
+	case '-':
+		return first.numeric - second.numeric;
+		break;
+	case '>':
+		if (first.isNumeric) {
+			return first.numeric > second.numeric;
+		}
+		else {
+			return first.str > second.str;
+		}
+		break;
+	case '<':
+		if (first.isNumeric) {
+			return first.numeric < second.numeric;
+		}
+		else {
+			return first.str < second.str;
+		}
+		break;
+	case '==':
+		if (first.isNumeric) {
+			return first.numeric == second.numeric;
+		}
+		else {
+			return first.str == second.str;
+		}
+		break;
+	default:
+		return null;
+	}
+}
+
+intValue calcute(string expr, varmap &vm) {
+	stack<char> op;
+	stack<intValue> val;
+	string operand = "";
+	for (size_t i = 0; i < expr.length(); i++) {
+		int my_pr = priority(expr[i]), op_pr = -2;
+		if (my_pr >= 0) {
+			// May check here.
+			val.push(getValue(operand, vm));
+			while ((!op.empty) && (op_pr = priority(op.top())) > my_pr) {
+				intValue v1 = val.top(), v2;
+				val.pop();
+				v2 = val.top();
+				val.pop();
+				char mc = op.top();
+				op.pop();
+				val.push(primary_calcute(v1, mc, v2, vm));
+			}
+			op.push(expr[i]);
+		}
+		else {
+			operand += expr[i];
+		}
+	}
+}
+
+intValue run(string code, varmap &prevenv, int indent = 0, string this_mean = "") {
+	varmap curenv;
+	vector<string> codestream = split(code);
+	size_t execptr = 0;
+	map<size_t, size_t> jmptable;
+	while (execptr < codestream.size()) {
+		// To be filled ...
+		execptr++;
+	after_add_exp:;
 	}
 }
 
