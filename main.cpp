@@ -1,5 +1,8 @@
 #define _CRT_SECURE_NO_WARNINGS
 
+// Converting long64 and double
+#pragma warning(disable:4244)
+
 #include <iostream>
 #include <stack>
 #include <map>
@@ -8,7 +11,7 @@
 #include <cstdio>
 using namespace std;
 
-char buf0[255];
+char buf0[255], buf01[255];
 
 // All the varmaps show one global variable space.
 class varmap {
@@ -88,6 +91,22 @@ string formatting(string origin, char dinner = '\\') {
 	return ns;
 }
 
+string unformatting(string origin) {
+	string ns = "\"";
+	for (size_t i = 0; i < origin.length(); i++) {
+		if (origin[i] == '"' || origin[i] == '\\') {
+			ns += "\\";
+			ns += origin[i];
+			// for debug propose
+			//cout << ns << endl;
+		}
+		else {
+			ns += origin[i];
+		}
+	}
+	return ns + "\"";
+}
+
 struct intValue {
 	double								numeric;
 	string								str;
@@ -119,12 +138,26 @@ struct intValue {
 		}
 	}
 
+	string unformat() {
+		if (isNull) {
+			return "null";
+		}
+		else if (isNumeric) {
+			sprintf(buf01, "%lf", numeric);
+			return buf01;
+		}
+		else {
+			// Unformat this string
+			return unformatting(str);
+		}
+	}
+
 } null;
 
 intValue getValue(string single_expr, varmap &vm) {
 	if (single_expr == "null") return null;
 	if (single_expr[0] == '"' && single_expr[single_expr.length() - 1] == '"') {
-		return single_expr.substr(1, single_expr.length() - 2);
+		return formatting(single_expr.substr(1, single_expr.length() - 2));
 	}
 	// Is number?
 	bool dot = false, isnum = true;
@@ -195,9 +228,10 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 		}
 		else {
 			string rep = "";
-			for (int cnt = 0; cnt < second.numeric; i++) {
+			for (int cnt = 0; cnt < second.numeric; cnt++) {
 				rep += first.str;
 			}
+			return rep;
 		}
 		break;
 	case '%':
@@ -248,38 +282,49 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 
 intValue calcute(string expr, varmap &vm) {
 	stack<char> op;
-	stack<intValue> val;
+	stack<string> val;
 	string operand = "";
 	for (size_t i = 0; i < expr.length(); i++) {
 		int my_pr = priority(expr[i]), op_pr = -2;
 		if (my_pr >= 0) {
 			// May check here.
-			val.push(getValue(operand, vm));
-			while ((!op.empty) && (op_pr = priority(op.top())) > my_pr) {
-				intValue v1 = val.top(), v2;
-				val.pop();
-				v2 = val.top();
-				val.pop();
+			val.push(operand);
+			while ((!op.empty()) && (op_pr = priority(op.top())) > my_pr) {
+				intValue v1, v2;
 				char mc = op.top();
 				op.pop();
-				val.push(primary_calcute(v1, mc, v2, vm));
+				if (mc == ':') {
+					v1 = intValue(val.top());
+				}
+				else {
+					v1 = getValue(val.top(), vm);
+				}
+				
+				val.pop();
+				v2 = getValue(val.top(), vm);
+				val.pop();
+				intValue pres = primary_calcute(v2, mc, v1, vm);
+				val.push(pres.unformat());
 			}
 			op.push(expr[i]);
+			operand = "";
 		}
 		else {
 			operand += expr[i];
 		}
 	}
+	if (operand.length()) val.push(operand);
 	while (!op.empty()) {
-		intValue v1 = val.top(), v2;
+		intValue v1 = getValue(val.top(), vm), v2;
 		val.pop();
-		v2 = val.top();
+		v2 = getValue(val.top(), vm);
 		val.pop();
 		char mc = op.top();
 		op.pop();
-		val.push(primary_calcute(v1, mc, v2, vm));
+		intValue pres = primary_calcute(v2, mc, v1, vm);
+		val.push(pres.unformat());
 	}
-	return val.top();
+	return getValue(val.top(), vm);
 }
 
 intValue run(string code, varmap &prevenv, int indent = 0, string this_mean = "") {
@@ -301,6 +346,7 @@ int main(int argc, char* argv[]) {
 	vm.set_global("a");
 	vm.set_global("b", "5");
 	vm.set_global("c", "\"a\"");
+	vm.set_global("d", "6");
 	getValue("null", vm).output();
 	cout << endl;
 	getValue("5.6", vm).output();
@@ -312,6 +358,8 @@ int main(int argc, char* argv[]) {
 	getValue("b", vm).output();
 	cout << endl;
 	getValue("c", vm).output();
+	cout << endl << "===" << endl;
+	calcute("\"a\"*3+\"bz\"*5", vm).output();	// It seems error right here.
 	cout << endl;
 	// End
 
