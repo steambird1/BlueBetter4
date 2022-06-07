@@ -270,6 +270,16 @@ intValue calcute(string expr, varmap &vm) {
 			operand += expr[i];
 		}
 	}
+	while (!op.empty()) {
+		intValue v1 = val.top(), v2;
+		val.pop();
+		v2 = val.top();
+		val.pop();
+		char mc = op.top();
+		op.pop();
+		val.push(primary_calcute(v1, mc, v2, vm));
+	}
+	return val.top();
 }
 
 intValue run(string code, varmap &prevenv, int indent = 0, string this_mean = "") {
