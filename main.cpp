@@ -13,41 +13,6 @@ using namespace std;
 
 char buf0[255], buf01[255];
 
-// All the varmaps show one global variable space.
-class varmap {
-	public:
-		
-		typedef vector<map<string,string> >::reverse_iterator			vit;
-		
-		varmap() {
-
-		}
-		void push() {
-			vs.push_back(map<string,string>());
-		}
-		void pop() {
-			vs.pop_back();
-		}
-		string& operator[](string key) {
-			// Find where it is
-			for (vit i = vs.rbegin(); i != vs.rend(); i++) {
-				if (i->count(key)) return ((*i))[key];
-			}
-			if (glob_vs.count(key)) return glob_vs[key];
-			return vs[vs.size()-1][key];
-		}
-		void set_global(string key, string value = "null") {
-			glob_vs[key] = value;
-		}
-		void declare(string key) {
-			vs[vs.size() - 1][key] = "null";
-		}
-	private:
-		vector<map<string,string> >										vs;
-			// Save evalable thing, like "" for string
-		static map<string, string>										glob_vs;
-};
-map<string, string> varmap::glob_vs;
 
 // quotes and dinner will be reserved
 // N maxsplit = N+1 elements. -1 means no maxsplit
@@ -62,33 +27,20 @@ vector<string> split(string str, char delimiter = '\n', int maxsplit = -1, char 
 		}
 		if (cs == allowedinner && (!dmode)) {
 			dmode = true;
-		} else {
+		}
+		else {
 			dmode = false;
 			if (cs == delimiter && (!qmode) && strtmp.length() && result.size() != maxsplit) {
 				result.push_back(strtmp);
 				strtmp = "";
-			} else {
+			}
+			else {
 				strtmp += cs;
 			}
 		}
 	}
 	if (strtmp.length()) result.push_back(strtmp);
 	return result;
-}
-
-string formatting(string origin, char dinner = '\\') {
-	string ns = "";
-	bool dmode = false;
-	for (size_t i = 0; i < origin.length(); i++) {
-		if (origin[i] == dinner && (!dmode)) {
-			dmode = true;
-		}
-		else {
-			ns += origin[i];
-			dmode = false;
-		}
-	}
-	return ns;
 }
 
 string unformatting(string origin) {
@@ -112,14 +64,18 @@ struct intValue {
 	string								str;
 	bool								isNull = false;
 	bool								isNumeric = false;
-	
+
 	intValue() {
 		isNull = true;
+		numeric = 0;
+		str = "";
 	}
 	intValue(double numeric) : numeric(numeric) {
 		isNumeric = true;
 		sprintf(buf0, "%lf", numeric);
 		str = buf0;
+		while (str.back() == '0') str.pop_back();
+		if (str.back() == '.') str.pop_back();
 	}
 	intValue(string str) : str(str) {
 
@@ -134,7 +90,7 @@ struct intValue {
 			cout << "num:" << numeric;
 		}
 		else {
-			cout << "str:" << formatting(str);
+			cout << "str:" << str;
 		}
 	}
 
@@ -153,6 +109,74 @@ struct intValue {
 	}
 
 } null;
+
+// All the varmaps show one global variable space.
+class varmap {
+	public:
+		
+		typedef vector<map<string,string> >::reverse_iterator			vit;
+		
+		varmap() {
+
+		}
+		void push() {
+			vs.push_back(map<string,string>());
+		}
+		void pop() {
+			vs.pop_back();
+		}
+		string& operator[](string key) {
+			// Find where it is
+			if (key == "this") {
+				return (*this_source)[this_name];
+			}
+			else if (key.substr(0, 5) == "this.") {
+				vector<string> s = split(key, '.', 1);
+				return (*this_source)[this_name + "." + s[1]];
+			}
+			else {
+				for (vit i = vs.rbegin(); i != vs.rend(); i++) {
+					if (i->count(key)) return ((*i))[key];
+				}
+				if (glob_vs.count(key)) return glob_vs[key];
+				return vs[vs.size() - 1][key];
+			}
+			
+		}
+		void set_global(string key, string value = "null") {
+			glob_vs[key] = value;
+		}
+		void declare(string key) {
+			vs[vs.size() - 1][key] = "null";
+		}
+		void set_this(varmap *source, string name) {
+			this_name = name;
+			this_source = source;
+		}
+	private:
+		vector<map<string,string> >										vs;
+			// Save evalable thing, like "" for string
+		string															this_name = "";
+		varmap															*this_source;
+			// Where 'this' points. use '.'
+		static map<string, string>										glob_vs;
+};
+map<string, string> varmap::glob_vs;
+
+string formatting(string origin, char dinner = '\\') {
+	string ns = "";
+	bool dmode = false;
+	for (size_t i = 0; i < origin.length(); i++) {
+		if (origin[i] == dinner && (!dmode)) {
+			dmode = true;
+		}
+		else {
+			ns += origin[i];
+			dmode = false;
+		}
+	}
+	return ns;
+}
 
 intValue getValue(string single_expr, varmap &vm) {
 	if (single_expr == "null") return null;
@@ -220,7 +244,7 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 		break;
 	case ':':
 		// As for this, 'first' should be direct var-name
-		return vm[first.str + ":" + second.str];
+		return vm[first.str + "." + second.str];
 		break;
 	case '*':
 		if (first.isNumeric) {
@@ -268,6 +292,9 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 		}
 		break;
 	case '==':
+		if (first.isNull && second.isNull) {
+			return true;
+		}
 		if (first.isNumeric) {
 			return first.numeric == second.numeric;
 		}
@@ -287,27 +314,59 @@ intValue calcute(string expr, varmap &vm) {
 	for (size_t i = 0; i < expr.length(); i++) {
 		int my_pr = priority(expr[i]), op_pr = -2;
 		if (my_pr >= 0) {
-			// May check here.
-			val.push(operand);
-			while ((!op.empty()) && (op_pr = priority(op.top())) > my_pr) {
-				intValue v1, v2;
-				char mc = op.top();
-				op.pop();
-				if (mc == ':') {
-					v1 = intValue(val.top());
-				}
-				else {
-					v1 = getValue(val.top(), vm);
-				}
-				
-				val.pop();
-				v2 = getValue(val.top(), vm);
-				val.pop();
-				intValue pres = primary_calcute(v2, mc, v1, vm);
-				val.push(pres.unformat());
+			if (expr[i] == '(') {
+				// Here should be operator previously.
+				op.push('(');
 			}
-			op.push(expr[i]);
-			operand = "";
+			else if (expr[i] == ')') {
+				if (operand.length()) val.push(operand);
+				while ((!op.empty()) && (op.top() != '(')) {
+					intValue v1, v2;
+					char mc = op.top();
+					op.pop();
+					
+						v1 = getValue(val.top(), vm);
+					
+					val.pop();
+					if (mc == ':') {
+						v2 = intValue(val.top());
+					}
+					else {
+						v2 = getValue(val.top(), vm);
+					}
+					
+					val.pop();
+					intValue pres = primary_calcute(v2, mc, v1, vm);
+					val.push(pres.unformat());
+				}
+				op.pop();	// '('
+				operand = "";
+			}
+			else {
+				// May check here.
+				if (operand.length()) val.push(operand);
+				while ((!op.empty()) && (op_pr = priority(op.top())) > my_pr) {
+					intValue v1, v2;
+					char mc = op.top();
+					op.pop();
+						v1 = getValue(val.top(), vm);
+					
+
+					val.pop();
+					if (mc == ':') {
+						v2 = intValue(val.top());
+					}
+					else {
+						v2 = getValue(val.top(), vm);
+					}
+					val.pop();
+					intValue pres = primary_calcute(v2, mc, v1, vm);
+					val.push(pres.unformat());
+				}
+				op.push(expr[i]);
+				operand = "";
+			}
+			
 		}
 		else {
 			operand += expr[i];
@@ -317,18 +376,23 @@ intValue calcute(string expr, varmap &vm) {
 	while (!op.empty()) {
 		intValue v1 = getValue(val.top(), vm), v2;
 		val.pop();
-		v2 = getValue(val.top(), vm);
-		val.pop();
 		char mc = op.top();
 		op.pop();
+		if (mc == ':') {
+			v2 = intValue(val.top());
+		}
+		else {
+			v2 = getValue(val.top(), vm);
+		}
+		val.pop();
 		intValue pres = primary_calcute(v2, mc, v1, vm);
 		val.push(pres.unformat());
 	}
 	return getValue(val.top(), vm);
 }
 
-intValue run(string code, varmap &prevenv, int indent = 0, string this_mean = "") {
-	varmap curenv;
+// This 'run' will skip ALL class and function declarations.
+intValue run(string code, varmap &myenv, int indent = 0) {
 	vector<string> codestream = split(code);
 	size_t execptr = 0;
 	map<size_t, size_t> jmptable;
@@ -339,28 +403,45 @@ intValue run(string code, varmap &prevenv, int indent = 0, string this_mean = ""
 	}
 }
 
+intValue preRun(string code) {
+	// Should prepare functions for it.
+	varmap newenv;
+
+	run(code, newenv);
+}
+
 int main(int argc, char* argv[]) {
 	// Test compments
+	//cout << string("this.abc").substr(0, 5) << endl;
+	//vector<string> s = split("this.a.b.c", '.', 1);
+	//cout << s.size() << " " << s[0] << " " << s[1] << endl;
+	//return 0;
+
 	varmap vm;
 	vm.push();
 	vm.set_global("a");
 	vm.set_global("b", "5");
 	vm.set_global("c", "\"a\"");
 	vm.set_global("d", "6");
-	getValue("null", vm).output();
+	vm.set_global("a.5", "\"a5\"");
+	vm.set_global("a.6", "\"a6\"");
+	//getValue("null", vm).output();
+	//cout << endl;
+	//getValue("5.6", vm).output();
+	//cout << endl;
+	//getValue("\"nu\\\"ll\\\"\"", vm).output();
 	cout << endl;
-	getValue("5.6", vm).output();
+	//getValue("a", vm).output();
+	//cout << endl;
+	//getValue("b", vm).output();
+	//cout << endl;
+	//getValue("c", vm).output();
+	//cout << endl << "===" << endl;
+	//calcute("a:(b+2)", vm).output();	// It seems error right here.
+	calcute("3*4+5", vm).output();
 	cout << endl;
-	getValue("\"nu\\\"ll\\\"\"", vm).output();
-	cout << endl;
-	getValue("a", vm).output();
-	cout << endl;
-	getValue("b", vm).output();
-	cout << endl;
-	getValue("c", vm).output();
-	cout << endl << "===" << endl;
-	calcute("\"a\"*3+\"bz\"*5", vm).output();	// It seems error right here.
-	cout << endl;
+	calcute("3*(4+5)", vm).output();
+	//cout << endl;
 	// End
 
 	return 0;
