@@ -14,7 +14,7 @@ using namespace std;
 // Pre declare
 class varmap;
 struct intValue;
-intValue run(string &code, varmap &myenv);
+intValue run(string code, varmap &myenv);
 intValue calcute(string expr, varmap &vm);
 
 const int max_indent = 65536;
@@ -466,7 +466,7 @@ intValue calcute(string expr, varmap &vm) {
 #define parameter_check(req) do {if (codexec.size() < req) {cout << "Error: required parameter not given (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
 
 // This 'run' will skip ALL class and function declarations.
-intValue run(string &code, varmap &myenv) {
+intValue run(string code, varmap &myenv) {
 	vector<string> codestream = split(code);
 	size_t execptr = 0;
 	map<size_t, size_t> jmptable;
@@ -475,7 +475,11 @@ intValue run(string &code, varmap &myenv) {
 		int ind = getIndent(codexec[0]);
 		// To be filled ...
 		if (codexec[0] == "class" || codexec[0] == "function") {
-			goto add_exp;
+			string s = "";
+			do {
+				s = codestream[++execptr];
+			} while (getIndent(s) > 0);
+			goto after_add_exp;
 		}
 		else if (codexec[0] == "print") {
 			cout << calcute(codexec[1], myenv).str;
@@ -490,7 +494,7 @@ intValue run(string &code, varmap &myenv) {
 }
 
 // to debug!
-intValue preRun(string &code) {
+intValue preRun(string code) {
 	// Should prepare functions for it.
 	varmap newenv;
 	newenv.push();
@@ -570,25 +574,11 @@ intValue preRun(string &code) {
 	//newenv.dump();
 	//return null;
 	// End
+
 	return run(code, newenv);
 }
 
 int main(int argc, char* argv[]) {
-	// Test compments
-	varmap x, y;
-	x.push(); y.push();
-	x["aq"] = "3";
-	x["aq.c"] = "9";
-	x["ab"] = "5";
-	y.set_this(&x, "aq");
-	y["this"] = "6";
-	cout << y["this.c"] << endl;
-	y["this.c"] = "19";
-	cout << x["aq.c"] << endl;
-	cout << x["aq"] << endl;
-	x.dump();
-	y.dump();
-	// End
 
 	return 0;
 }
