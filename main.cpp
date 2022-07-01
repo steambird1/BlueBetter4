@@ -2,6 +2,8 @@
 
 // Converting long64 and double
 #pragma warning(disable:4244)
+// Unused tab
+#pragma warning(disable:4102)
 
 #include <iostream>
 #include <stack>
@@ -245,7 +247,8 @@ intValue getValue(string single_expr, varmap &vm) {
 	}
 	// Is number?
 	bool dot = false, isnum = true;
-	for (size_t i = 0; i < single_expr.length(); i++) {
+	double neg = 1;	// Unused, at least now
+	for (size_t i = 1; i < single_expr.length(); i++) {	// Not infl.
 		char &ch = single_expr[i];
 		if (ch == '.') {
 			if (dot) {
@@ -262,13 +265,30 @@ intValue getValue(string single_expr, varmap &vm) {
 			break;
 		}
 	}
+	char &fch = single_expr[0];
+	if (fch < '0' || fch > '9') {
+		if (fch == 'n' || fch == '-') {
+			neg = -1;
+			single_expr.erase(single_expr.begin());
+		}
+		else {
+			isnum = false;
+		}
+	}
 	if (isnum) {
-		return atof(single_expr.c_str());
+		return atof(single_expr.c_str()) * neg;
 	}
 	else {
-		if (single_expr.find(' ') != string::npos) {
+		vector<string> spl = split(single_expr, ' ', 1);
+		vector<string> dotspl = split(spl[0], '.', 1);
+		string set_this = "";
+		if (vm[dotspl[0] + ".__type__"] != "null" && vm[dotspl[0] + ".__type__"] != "function") {
+			set_this = dotspl[0];
+			spl[0] = vm[dotspl[0] + ".__type__"] + "." + dotspl[1];
+		}
+		if (vm[spl[0] + ".__type__"] == "function") {
 			// A function call.
-			vector<string> spl = split(single_expr, ' ', 1);
+			
 			varmap nvm;
 			nvm.push();
 			nvm.set_this(vm.this_source, vm.this_name);
@@ -287,6 +307,7 @@ intValue getValue(string single_expr, varmap &vm) {
 			for (size_t i = 0; i < arg.size(); i++) {
 				nvm[argname[i]] = (calcute(arg[i], vm)).unformat();
 			}
+			if (set_this.length()) nvm.set_this(&vm, set_this);
 			return run(vm[spl[0]], nvm);
 		}
 		else {
@@ -551,6 +572,7 @@ intValue run(string code, varmap &myenv) {
 				vm.push();
 				vm.set_this(&myenv, codexec2[0]);
 				myenv[codexec2[0]] = "null";
+				myenv[codexec2[0] + ".__type__"] = azer[1];
 				run(myenv[azer[1] + ".__init__"], vm);
 			}
 			else if (codexec2[1] == "input") {
@@ -599,7 +621,7 @@ intValue run(string code, varmap &myenv) {
 					string s = codestream[++eptr];
 					int r = getIndent(s);
 					vector<string> sp = split(s, ' ', 1);
-					if (r == ind && (sp[0] == "elif" || sp[0] == "else:")) break;
+					if (r == ind) break;
 				}
 				execptr = eptr;
 				goto after_add_exp;
@@ -607,6 +629,52 @@ intValue run(string code, varmap &myenv) {
 		}
 		else if (codexec[0] == "else:") {
 			// Go on executing
+		}
+		else if (codexec[0] == "run") {
+			parameter_check(2);
+			calcute(codexec[1], myenv);
+		}
+		else if (codexec[0] == "while") {
+			parameter_check(2);
+			if (codexec[1].length()) codexec[1].pop_back();
+			if (calcute(codexec[1], myenv).boolean()) {
+				// True, go on execution, and set jumper to here at the end.
+				size_t eptr = execptr;
+				while (eptr != codestream.size() - 1) {
+					// End if indent equals.
+					int r = getIndentRaw(codestream[++eptr]);
+					if (r == ind) break;
+				}
+				jmptable[--eptr] = execptr;
+			}
+			else {
+				while (getIndentRaw(codestream[++execptr]) != ind); 
+				goto after_add_exp;
+
+			}
+		}
+		else if (codexec[0] == "continue") {
+			// Go back to previous (nearest) small-indent
+			while (execptr > 0) {
+				execptr--;
+				string s = codestream[execptr];
+				int id = getIndent(s);
+				vector<string> spl = split(s, ' ', 1);
+				if (id < ind && (spl[0] == "while" || spl[0] == "for")) break;
+
+			}
+			goto after_add_exp;
+		}
+		else if (codexec[0] == "break") {
+			while (execptr != codestream.size() - 1) {
+				execptr++;
+				string s = codestream[execptr];
+				int id = getIndent(s);
+				vector<string> spl = split(s, ' ', 1);
+				if (id < ind && (spl[0] == "while" || spl[0] == "for")) break;
+				
+			}
+			goto after_add_exp;
 		}
 	add_exp: if (jmptable.count(execptr)) {
 		execptr = jmptable[execptr];
@@ -710,7 +778,7 @@ int main(int argc, char* argv[]) {
 	// Test
 	//preRun("set a=5\nset a.5=4\nset a.4=3\nset a.3=2\nset a:a:a:a:a=1\nprint a.2");
 	//preRun("set a=input\nprint a");
-	string code = "";
+	string code = "set q=0\nwhile q<10:\n\tset q=q+1\n\tif q=7:\n\t\tbreak\n\tprint q\n\tprint \"\n\"\nprint \"OK\"";
 	cout << code << endl;
 	preRun(code);
 	// End
