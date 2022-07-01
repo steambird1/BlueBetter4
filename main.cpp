@@ -19,7 +19,7 @@ intValue calcute(string expr, varmap &vm);
 
 const int max_indent = 65536;
 
-char buf0[255], buf01[255];
+char buf0[255], buf01[255], buf1[65536];
 
 // At most delete maxfetch.
 int getIndent(string &str, int maxfetch = -1) {
@@ -29,6 +29,11 @@ int getIndent(string &str, int maxfetch = -1) {
 		str.erase(str.begin());
 	}
 	return id;
+}
+
+int getIndentRaw(string str, int maxfetch = -1) {
+	string s = str;
+	return getIndent(s, maxfetch);
 }
 
 // quotes and dinner will be reserved
@@ -123,6 +128,15 @@ struct intValue {
 			// Unformat this string
 			return unformatting(str);
 		}
+	}
+
+	bool boolean() {
+		if (isNull) return false;
+		if (isNumeric)
+			if (this->numeric == 0) return false;
+			//return true;
+		if (this->str.length()) return true;
+		return false;
 	}
 
 } null;
@@ -296,7 +310,7 @@ int priority(char op) {
 	case '+': case '-':
 		return 2;
 		break;
-	case '>': case '<': case '==':
+	case '>': case '<': case '=':
 		return 1;
 		break;
 	case '(':
@@ -308,6 +322,7 @@ int priority(char op) {
 }
 
 typedef long long							long64;
+typedef unsigned long long					ulong64;
 
 // Please notice special meanings.
 intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
@@ -363,7 +378,7 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 			return first.str < second.str;
 		}
 		break;
-	case '==':
+	case '=':
 		if (first.isNull && second.isNull) {
 			return true;
 		}
@@ -372,6 +387,26 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 		}
 		else {
 			return first.str == second.str;
+		}
+		break;
+	case '&':
+		if (first.isNumeric && second.isNumeric) {
+			return ulong64(first.numeric) & ulong64(second.numeric);
+		}
+		else {
+			if (first.isNull || second.isNull) return 0;
+			if (first.str.length() == 0 || second.str.length() == 0) return 0;
+			return 1;
+		}
+		break;
+	case '|':
+		if (first.isNumeric && second.isNumeric) {
+			return ulong64(first.numeric) | ulong64(second.numeric);
+		}
+		else {
+			if (first.isNull && second.isNull) return 0;
+			if (first.str.length() == 0 && second.str.length() == 0) return 0;
+			return 1;
 		}
 		break;
 	default:
@@ -464,15 +499,20 @@ intValue calcute(string expr, varmap &vm) {
 }
 
 #define parameter_check(req) do {if (codexec.size() < req) {cout << "Error: required parameter not given (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
+#define parameter_check2(req,ext) do {if (codexec2.size() < req) {cout << "Error: required parameter not given in sub command " << ext << " (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
 
 // This 'run' will skip ALL class and function declarations.
+// Provided environment should be pushed.
 intValue run(string code, varmap &myenv) {
 	vector<string> codestream = split(code);
 	size_t execptr = 0;
 	map<size_t, size_t> jmptable;
+	int prevind = 0;
 	while (execptr < codestream.size()) {
 		vector<string> codexec = split(codestream[execptr], ' ', 1);
 		int ind = getIndent(codexec[0]);
+		if (prevind < ind) myenv.push();
+		else if (prevind > ind) myenv.pop();
 		// To be filled ...
 		if (codexec[0] == "class" || codexec[0] == "function") {
 			string s = "";
@@ -482,18 +522,103 @@ intValue run(string code, varmap &myenv) {
 			goto after_add_exp;
 		}
 		else if (codexec[0] == "print") {
+			parameter_check(2);
 			cout << calcute(codexec[1], myenv).str;
 		}
 		else if (codexec[0] == "return") {
+			parameter_check(2);
 			return calcute(codexec[1], myenv);
 		}
-		add_exp: execptr++;
-	after_add_exp:;
+		else if (codexec[0] == "set") {
+			parameter_check(2);
+			vector<string> codexec2 = split(codexec[1], '=', 1);
+			parameter_check2(2,"set");
+			if (codexec2[0][0]=='$') {
+				codexec2[0].erase(codexec2[0].begin());
+				codexec2[0] = calcute(codexec2[0], myenv).str;
+			} else if (codexec2[0].find(":") != string::npos) {
+				vector<string> dasher = split(codexec2[0], ':');
+				// calcute until the last.
+				intValue final = calcute(dasher[dasher.size()-1],myenv);
+				for (size_t i = dasher.size() - 2; i >= 1; i--) {
+					final = calcute(dasher[i] + ":" + final.str,myenv);
+				}
+				codexec2[0] = dasher[0] + "." + final.str;
+			}
+			if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "new ") {
+				vector<string> azer = split(codexec2[1], ' ');
+				varmap vm;
+				vm.push();
+				vm.set_this(&myenv, codexec2[0]);
+				myenv[codexec2[0]] = "null";
+				run(myenv[azer[1] + ".__init__"], vm);
+			}
+			else if (codexec2[1] == "input") {
+				fgets(buf1, 65536, stdin);
+				myenv[codexec2[0]] = intValue(buf1).unformat();
+			}
+			else if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "int ") {
+				myenv[codexec2[0]] = atoi(calcute(codexec2[1], myenv).str.c_str());
+			}
+			else if (codexec2[1] == "input int") {
+				//myenv[codexec2[0]]
+				double dv;
+				scanf("%lf", &dv);
+				myenv[codexec2[0]] = intValue(dv).unformat();
+			}
+			else {
+				myenv[codexec2[0]] = calcute(codexec2[1], myenv).unformat();
+			}
+			
+		}
+		else if (codexec[0] == "if" || codexec[0] == "elif") {
+			parameter_check(2);
+			// Certainly you have ':'
+			if (codexec[1].length()) codexec[1].pop_back();
+			if (calcute(codexec[1], myenv).boolean()) {
+				// True, go on execution, and set jumper to the end of else before any else / elif
+				size_t rptr = execptr;								// Where our code ends
+				while (getIndentRaw(codestream[++rptr]) != ind);	// Go on until aligned else / elif
+				rptr--;												// Something strange
+				size_t eptr = execptr;
+				while (eptr != codestream.size() - 1) {
+					// End if indent equals and not 'elif' or 'else'.
+					//if () break;
+					string s = codestream[++eptr];
+					int r = getIndent(s);
+					vector<string> sp = split(s, ' ', 1);
+					if (r == ind && sp[0] != "elif" && sp[0] != "else:") break;
+				}
+				jmptable[rptr] = eptr;
+			}
+			else {
+				// Go on elif / else
+				size_t eptr = execptr + 1;
+				while (eptr != codestream.size() - 1) {
+					// End if indent equals and not 'elif' or 'else'.
+					string s = codestream[++eptr];
+					int r = getIndent(s);
+					vector<string> sp = split(s, ' ', 1);
+					if (r == ind && (sp[0] == "elif" || sp[0] == "else:")) break;
+				}
+				execptr = eptr;
+				goto after_add_exp;
+			}
+		}
+		else if (codexec[0] == "else:") {
+			// Go on executing
+		}
+	add_exp: if (jmptable.count(execptr)) {
+		execptr = jmptable[execptr];
+	}
+			 else {
+		execptr++;
+	}
+		 after_add_exp: prevind = ind;
 	}
 	return null;
 }
 
-// to debug!
 intValue preRun(string code) {
 	// Should prepare functions for it.
 	varmap newenv;
@@ -570,15 +695,24 @@ intValue preRun(string code) {
 		newenv.set_global(cfname + ".__type__", "function");
 		newenv.set_global(cfname + ".__arg__", cfargs);
 	}
-	// For debug propose
-	//newenv.dump();
+	
 	//return null;
 	// End
 
-	return run(code, newenv);
+	intValue res = run(code, newenv);
+
+	// For debug propose
+	//newenv.dump();
+	return res;
 }
 
 int main(int argc, char* argv[]) {
-
+	// Test
+	//preRun("set a=5\nset a.5=4\nset a.4=3\nset a.3=2\nset a:a:a:a:a=1\nprint a.2");
+	//preRun("set a=input\nprint a");
+	string code = "";
+	cout << code << endl;
+	preRun(code);
+	// End
 	return 0;
 }
