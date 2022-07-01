@@ -1,0 +1,15 @@
+class range:
+	init:
+		set this.end=null
+		set this.step=null
+		set this.i=null
+	function initalize begin end step:
+		set this.i=begin
+		set this.end=end
+		set this.step=step
+	iterator:
+		set this.i=this.i+this.step
+		if this.i>this.end:
+			return null
+		else:
+			return this.i

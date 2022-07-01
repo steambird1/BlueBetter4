@@ -151,6 +151,10 @@ __arg__			For a function, showing its parameters (delimitered by space).
 __init__		For a class definition, showing its initalizing function.
 	For class,	[name].[function]
 __type__		For a class object, showing its kind.
+
+New opt:
+__iter__		Return next iteration value
+				(FOR loop ends if __iter__ returns null.)
 */
 class varmap {
 	public:
@@ -522,6 +526,17 @@ intValue calcute(string expr, varmap &vm) {
 #define parameter_check(req) do {if (codexec.size() < req) {cout << "Error: required parameter not given (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
 #define parameter_check2(req,ext) do {if (codexec2.size() < req) {cout << "Error: required parameter not given in sub command " << ext << " (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
 
+string curexp(string exp, varmap &myenv) {
+	vector<string> dasher = split(exp, ':');
+	if (dasher.size() == 1) return exp;
+	// calcute until the last.
+	intValue final = calcute(dasher[dasher.size() - 1], myenv);
+	for (size_t i = dasher.size() - 2; i >= 1; i--) {
+		final = calcute(dasher[i] + ":" + final.str, myenv);
+	}
+	return dasher[0] + "." + final.str;
+}
+
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv) {
@@ -558,13 +573,7 @@ intValue run(string code, varmap &myenv) {
 				codexec2[0].erase(codexec2[0].begin());
 				codexec2[0] = calcute(codexec2[0], myenv).str;
 			} else if (codexec2[0].find(":") != string::npos) {
-				vector<string> dasher = split(codexec2[0], ':');
-				// calcute until the last.
-				intValue final = calcute(dasher[dasher.size()-1],myenv);
-				for (size_t i = dasher.size() - 2; i >= 1; i--) {
-					final = calcute(dasher[i] + ":" + final.str,myenv);
-				}
-				codexec2[0] = dasher[0] + "." + final.str;
+				codexec2[0] = curexp(codexec2[0], myenv);
 			}
 			if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "new ") {
 				vector<string> azer = split(codexec2[1], ' ');
@@ -648,7 +657,7 @@ intValue run(string code, varmap &myenv) {
 				jmptable[--eptr] = execptr;
 			}
 			else {
-				while (getIndentRaw(codestream[++execptr]) != ind); 
+				while (execptr < codestream.size() && getIndentRaw(codestream[++execptr]) != ind);
 				goto after_add_exp;
 
 			}
@@ -676,6 +685,25 @@ intValue run(string code, varmap &myenv) {
 			}
 			goto after_add_exp;
 		}
+		else if (codexec[0] == "for") {
+			// for [var]@[rangeable]:
+			parameter_check(2);
+			vector<string> codexec2 = split(codexec[1], '@', 1);
+			if (codexec2[1].length()) codexec2[1].pop_back();
+			intValue iter = getValue(curexp(codexec2[1], myenv) + ".__iter__", myenv);
+			// Set up jumper
+			size_t eptr = execptr;
+			while (eptr != codestream.size() - 1) {
+				// End if indent equals.
+				int r = getIndentRaw(codestream[++eptr]);
+				if (r == ind) break;
+			}
+			jmptable[--eptr] = execptr;
+			if (iter.isNull) {
+				while (execptr+1 < codestream.size() && getIndentRaw(codestream[++execptr]) != ind);
+				goto after_add_exp;
+			}
+		}
 	add_exp: if (jmptable.count(execptr)) {
 		execptr = jmptable[execptr];
 	}
@@ -691,13 +719,27 @@ intValue preRun(string code) {
 	// Should prepare functions for it.
 	varmap newenv;
 	newenv.push();
-	vector<string> codestream = split(code);
+	vector<string> codestream;
+	// Initalize libraries right here
+	FILE *f = fopen("bmain.blue", "r");
+	if (f != NULL) {
+		while (!feof(f)) {
+			fgets(buf1, 65536, f);
+			codestream.push_back(buf1);
+		}
+	}
+	fclose(f);
+	// End
+
+	vector<string> sc = split(code);
+	codestream.insert(codestream.end()-1,sc.begin(),sc.end());
 	string curclass = "";					// Will append '.'
 	string curfun = "", cfname = "", cfargs = "";
 	int fun_indent = max_indent;
 	for (size_t i = 0; i < codestream.size(); i++) {
 		vector<string> codexec = split(codestream[i], ' ', 2);
 		int ind = getIndent(codexec[0], 2);
+		if (codexec[0].length() && codexec[0][codexec[0].length() - 1] == '\n') codexec[0].pop_back();
 		if (ind >= fun_indent) {
 			string s = codestream[i];
 			getIndent(s, fun_indent);
@@ -728,6 +770,7 @@ intValue preRun(string code) {
 				*/
 				if (codexec[0] == "class") {
 					parameter_check(2);
+					if (codexec[1][codexec[1].length() - 1] == '\n') codexec[1].pop_back();
 					codexec[1].pop_back();	// ':'
 					newenv.set_global(codexec[1] + ".__type__", "class");
 					curclass = codexec[1] + ".";
@@ -738,6 +781,10 @@ intValue preRun(string code) {
 					fun_indent = 2;
 					cfname = curclass + "__init__";
 				}
+				else if (codexec[0] == "iterator:") {
+					fun_indent = 2;
+					cfname = curclass + "__iter__";
+				}
 				break;
 			default:
 				break;
@@ -746,11 +793,13 @@ intValue preRun(string code) {
 				parameter_check(2);
 				fun_indent = 1 + bool(curclass.length());
 				if (codexec.size() >= 3) {
+					if (codexec[2][codexec[2].length() - 1] == '\n') codexec[2].pop_back();
 					codexec[2].pop_back(); // ':'
 					cfargs = codexec[2];
 				}
 				else {
 					cfargs = "";
+					if (codexec[1][codexec[1].length() - 1] == '\n') codexec[1].pop_back();
 					codexec[1].pop_back(); // ':'
 				}
 				cfname = curclass + codexec[1];
@@ -778,7 +827,7 @@ int main(int argc, char* argv[]) {
 	// Test
 	//preRun("set a=5\nset a.5=4\nset a.4=3\nset a.3=2\nset a:a:a:a:a=1\nprint a.2");
 	//preRun("set a=input\nprint a");
-	string code = "set q=0\nwhile q<10:\n\tset q=q+1\n\tif q=7:\n\t\tbreak\n\tprint q\n\tprint \"\n\"\nprint \"OK\"";
+	string code = "set w=new range\nrun w.initalize 1 5 1\nfor i@w:\n\tprint i\n";
 	cout << code << endl;
 	preRun(code);
 	// End
