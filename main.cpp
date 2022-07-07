@@ -26,6 +26,7 @@ char buf0[255], buf01[255], buf1[65536];
 // At most delete maxfetch.
 int getIndent(string &str, int maxfetch = -1) {
 	int id = 0;
+	while (str.length() && str[0] == '\n') str.erase(str.begin());
 	while (str.length() && str[0] == '\t' && id != maxfetch) {
 		id++;
 		str.erase(str.begin());
@@ -574,6 +575,7 @@ intValue run(string code, varmap &myenv) {
 	int prevind = 0;
 	while (execptr < codestream.size()) {
 		vector<string> codexec = split(codestream[execptr], ' ', 1);
+		if (codexec.size() && codexec[0][0] == '\n') codexec[0].erase(codexec[0].begin()); // LF, why?
 		int ind = getIndent(codexec[0]);
 		if (prevind < ind) myenv.push();
 		else if (prevind > ind) myenv.pop();
@@ -740,8 +742,11 @@ intValue run(string code, varmap &myenv) {
 					int r = getIndentRaw(codestream[++eptr]);
 					if (r == ind) break;
 				}
-				jmptable[--eptr] = execptr;
+				jmptable[--eptr] = execptr;	// Should be changed in 'while' loop??
 			}
+		}
+		else if (codexec[0] == "dump") {
+			myenv.dump();
 		}
 	add_exp: if (jmptable.count(execptr)) {
 		execptr = jmptable[execptr];
@@ -867,7 +872,7 @@ int main(int argc, char* argv[]) {
 	// Test
 	//preRun("set a=5\nset a.5=4\nset a.4=3\nset a.3=2\nset a:a:a:a:a=1\nprint a.2");
 	//preRun("set a=input\nprint a");
-	string code = "for i=1~5:\n\tif i=3:\n\t\tbreak\n\tprint i\nprint i\nprint \"OK\"";
+	string code = "set a=new list\nrun a.append 3\nrun a.append 4\nrun a.append 5\nrun a.remove 1\ndump";
 	cout << code << endl;
 	preRun(code);
 	// End

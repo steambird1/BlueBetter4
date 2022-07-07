@@ -1,0 +1,10 @@
+class list:
+	init:
+		set this.length=0
+	function append data:
+		set this:this.length=data
+		set this.length=this.length+1
+	function remove pos:
+		for i=pos~this.length-1:
+			set this:i=this:(i+1)
+		set this.length=this.length-1
