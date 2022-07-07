@@ -443,60 +443,89 @@ intValue calcute(string expr, varmap &vm) {
 	stack<char> op;
 	stack<string> val;
 	string operand = "";
+	bool cur_neg = false;
+	int ignore = 0;
 	for (size_t i = 0; i < expr.length(); i++) {
 		int my_pr = priority(expr[i]), op_pr = -2;
 		if (my_pr >= 0) {
 			if (expr[i] == '(') {
 				// Here should be operator previously.
-				op.push('(');
+				if (i == 0 || priority(expr[i - 1]) >= 0) {
+					op.push('(');
+				}
+				else {
+					ignore++;
+					operand += expr[i];
+				}
 			}
 			else if (expr[i] == ')') {
-				if (operand.length()) val.push(operand);
-				while ((!op.empty()) && (op.top() != '(')) {
-					intValue v1, v2;
-					char mc = op.top();
-					op.pop();
-					
+				if (ignore <= 0) {
+					if (operand.length()) {
+						val.push(string(cur_neg ? "-" : "") + operand);
+						cur_neg = false;
+					}
+					while ((!op.empty()) && (op.top() != '(')) {
+						intValue v1, v2;
+						char mc = op.top();
+						op.pop();
+
 						v1 = getValue(val.top(), vm);
-					
-					val.pop();
-					if (mc == ':') {
-						v2 = intValue(val.top());
+
+						val.pop();
+						if (mc == ':') {
+							v2 = intValue(val.top());
+						}
+						else {
+							v2 = getValue(val.top(), vm);
+						}
+
+						val.pop();
+						intValue pres = primary_calcute(v2, mc, v1, vm);
+						val.push(pres.unformat());
 					}
-					else {
-						v2 = getValue(val.top(), vm);
-					}
-					
-					val.pop();
-					intValue pres = primary_calcute(v2, mc, v1, vm);
-					val.push(pres.unformat());
+					op.pop();	// '('
+					operand = "";
 				}
-				op.pop();	// '('
-				operand = "";
+				else {
+					ignore--;
+					operand += expr[i];
+				}
+				
+			}
+			else if (ignore <= 0) {
+				// May check here.
+				if (operand.length()) {
+					val.push(string(cur_neg ? "-" : "") + operand);
+					cur_neg = false;
+				}
+				if (expr[i] == '-' && (i == 0 || expr[i - 1] == '(')) {
+					cur_neg = true;
+				}
+				else {
+					while ((!op.empty()) && (op_pr = priority(op.top())) > my_pr) {
+						intValue v1, v2;
+						char mc = op.top();
+						op.pop();
+						v1 = getValue(val.top(), vm);
+
+
+						val.pop();
+						if (mc == ':') {
+							v2 = intValue(val.top());
+						}
+						else {
+							v2 = getValue(val.top(), vm);
+						}
+						val.pop();
+						intValue pres = primary_calcute(v2, mc, v1, vm);
+						val.push(pres.unformat());
+					}
+					op.push(expr[i]);
+					operand = "";
+				}
 			}
 			else {
-				// May check here.
-				if (operand.length()) val.push(operand);
-				while ((!op.empty()) && (op_pr = priority(op.top())) > my_pr) {
-					intValue v1, v2;
-					char mc = op.top();
-					op.pop();
-						v1 = getValue(val.top(), vm);
-					
-
-					val.pop();
-					if (mc == ':') {
-						v2 = intValue(val.top());
-					}
-					else {
-						v2 = getValue(val.top(), vm);
-					}
-					val.pop();
-					intValue pres = primary_calcute(v2, mc, v1, vm);
-					val.push(pres.unformat());
-				}
-				op.push(expr[i]);
-				operand = "";
+				operand += expr[i];
 			}
 			
 		}
@@ -504,7 +533,10 @@ intValue calcute(string expr, varmap &vm) {
 			operand += expr[i];
 		}
 	}
-	if (operand.length()) val.push(operand);
+	if (operand.length()) {
+		val.push(string(cur_neg ? "-" : "") + operand);
+		cur_neg = false;
+	}
 	while (!op.empty()) {
 		intValue v1 = getValue(val.top(), vm), v2;
 		val.pop();
@@ -686,22 +718,31 @@ intValue run(string code, varmap &myenv) {
 			goto after_add_exp;
 		}
 		else if (codexec[0] == "for") {
-			// for [var]@[rangeable]:
-			parameter_check(2);
-			vector<string> codexec2 = split(codexec[1], '@', 1);
-			if (codexec2[1].length()) codexec2[1].pop_back();
-			intValue iter = getValue(curexp(codexec2[1], myenv) + ".__iter__", myenv);
-			// Set up jumper
-			size_t eptr = execptr;
-			while (eptr != codestream.size() - 1) {
-				// End if indent equals.
-				int r = getIndentRaw(codestream[++eptr]);
-				if (r == ind) break;
+			// for [var]=[begin]~[end]~[step]
+			vector<string> codexec2 = split(codexec[1], '=', 1);
+			vector<string> rangeobj = split(codexec2[1], '~');
+			intValue stepper = 1, current;
+			if (rangeobj.size() >= 3) stepper = calcute(rangeobj[2], myenv);
+			if (myenv[codexec2[0]] == "null") {
+				current = intValue(calcute(rangeobj[0], myenv).numeric);
 			}
-			jmptable[--eptr] = execptr;
-			if (iter.isNull) {
-				while (execptr+1 < codestream.size() && getIndentRaw(codestream[++execptr]) != ind);
+			else {
+				current = intValue(calcute(myenv[codexec2[0]], myenv).numeric + stepper.numeric);
+			}
+			myenv[codexec2[0]] = current.unformat();
+			if (calcute(myenv[codexec2[0]], myenv).numeric == calcute(rangeobj[1], myenv).numeric) {
+				// Jump where end-of-loop
+				while (execptr < codestream.size() && getIndentRaw(codestream[++execptr]) != ind);
 				goto after_add_exp;
+			}
+			else {
+				size_t eptr = execptr;
+				while (eptr != codestream.size() - 1) {
+					// End if indent equals.
+					int r = getIndentRaw(codestream[++eptr]);
+					if (r == ind) break;
+				}
+				jmptable[--eptr] = execptr;
 			}
 		}
 	add_exp: if (jmptable.count(execptr)) {
@@ -738,6 +779,7 @@ intValue preRun(string code) {
 	int fun_indent = max_indent;
 	for (size_t i = 0; i < codestream.size(); i++) {
 		vector<string> codexec = split(codestream[i], ' ', 2);
+		if (codexec.size() <= 0 || codexec[0].length() <= 0) continue;
 		int ind = getIndent(codexec[0], 2);
 		if (codexec[0].length() && codexec[0][codexec[0].length() - 1] == '\n') codexec[0].pop_back();
 		if (ind >= fun_indent) {
@@ -780,11 +822,11 @@ intValue preRun(string code) {
 				if (codexec[0] == "init:") {
 					fun_indent = 2;
 					cfname = curclass + "__init__";
-				}
+				}/*
 				else if (codexec[0] == "iterator:") {
 					fun_indent = 2;
 					cfname = curclass + "__iter__";
-				}
+				}*/
 				break;
 			default:
 				break;
@@ -827,7 +869,7 @@ int main(int argc, char* argv[]) {
 	// Test
 	//preRun("set a=5\nset a.5=4\nset a.4=3\nset a.3=2\nset a:a:a:a:a=1\nprint a.2");
 	//preRun("set a=input\nprint a");
-	string code = "set w=new range\nrun w.initalize 1 5 1\nfor i@w:\n\tprint i\n";
+	string code = "function add a b:\n\treturn a+b\nprint add (6/2),(5*3)*2";
 	cout << code << endl;
 	preRun(code);
 	// End
