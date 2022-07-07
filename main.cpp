@@ -151,10 +151,6 @@ __arg__			For a function, showing its parameters (delimitered by space).
 __init__		For a class definition, showing its initalizing function.
 	For class,	[name].[function]
 __type__		For a class object, showing its kind.
-
-New opt:
-__iter__		Return next iteration value
-				(FOR loop ends if __iter__ returns null.)
 */
 class varmap {
 	public:
@@ -719,6 +715,8 @@ intValue run(string code, varmap &myenv) {
 		}
 		else if (codexec[0] == "for") {
 			// for [var]=[begin]~[end]~[step]
+			parameter_check(2);
+			if (codexec[1].length()) codexec[1].pop_back();
 			vector<string> codexec2 = split(codexec[1], '=', 1);
 			vector<string> rangeobj = split(codexec2[1], '~');
 			intValue stepper = 1, current;
@@ -869,7 +867,7 @@ int main(int argc, char* argv[]) {
 	// Test
 	//preRun("set a=5\nset a.5=4\nset a.4=3\nset a.3=2\nset a:a:a:a:a=1\nprint a.2");
 	//preRun("set a=input\nprint a");
-	string code = "function add a b:\n\treturn a+b\nprint add (6/2),(5*3)*2";
+	string code = "for i=1~5:\n\tif i=3:\n\t\tbreak\n\tprint i\nprint i\nprint \"OK\"";
 	cout << code << endl;
 	preRun(code);
 	// End
