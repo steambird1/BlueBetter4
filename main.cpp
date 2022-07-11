@@ -872,7 +872,7 @@ int main(int argc, char* argv[]) {
 	// Test
 	//preRun("set a=5\nset a.5=4\nset a.4=3\nset a.3=2\nset a:a:a:a:a=1\nprint a.2");
 	//preRun("set a=input\nprint a");
-	string code = "set a=new list\nrun a.append 3\nrun a.append 4\nrun a.append 5\nrun a.remove 1\ndump";
+	string code = "set a=new list\nrun a.append 3\nrun a.append 4\nrun a.append 5\nrun a.insert 1,9\nfor i=0~a.length:\n\tprint a:i\n\n";
 	cout << code << endl;
 	preRun(code);
 	// End

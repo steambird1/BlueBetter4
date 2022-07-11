@@ -8,3 +8,8 @@ class list:
 		for i=pos~this.length-1:
 			set this:i=this:(i+1)
 		set this.length=this.length-1
+	function insert pos data:
+		for i=this.length~pos~-1:
+			set this:i=this:(i-1)
+		set this.length=this.length+1
+		set this:pos=data
