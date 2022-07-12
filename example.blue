@@ -1,0 +1,4 @@
+print "This is an example file."
+
+function foo a b:
+	return a+b

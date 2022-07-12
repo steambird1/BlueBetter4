@@ -554,6 +554,7 @@ intValue calcute(string expr, varmap &vm) {
 
 #define parameter_check(req) do {if (codexec.size() < req) {cout << "Error: required parameter not given (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
 #define parameter_check2(req,ext) do {if (codexec2.size() < req) {cout << "Error: required parameter not given in sub command " << ext << " (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
+#define parameter_check3(req,ext) do {if (codexec3.size() < req) {cout << "Error: required parameter not given in sub command " << ext << " (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
 
 string curexp(string exp, varmap &myenv) {
 	vector<string> dasher = split(exp, ':');
@@ -565,6 +566,8 @@ string curexp(string exp, varmap &myenv) {
 	}
 	return dasher[0] + "." + final.str;
 }
+
+map<int, FILE*> files;
 
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
@@ -580,7 +583,7 @@ intValue run(string code, varmap &myenv) {
 		if (prevind < ind) myenv.push();
 		else if (prevind > ind) myenv.pop();
 		// To be filled ...
-		if (codexec[0] == "class" || codexec[0] == "function") {
+		if (codexec[0] == "class" || codexec[0] == "function")  {
 			string s = "";
 			do {
 				s = codestream[++execptr];
@@ -619,7 +622,10 @@ intValue run(string code, varmap &myenv) {
 				myenv[codexec2[0]] = intValue(buf1).unformat();
 			}
 			else if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "int ") {
-				myenv[codexec2[0]] = atoi(calcute(codexec2[1], myenv).str.c_str());
+				myenv[codexec2[0]] = atof(calcute(codexec2[1], myenv).str.c_str());
+			}
+			else if (codexec2[1].length() > 5 && codexec2[1].substr(0, 5) == "intg ") {
+				myenv[codexec2[0]] = int(calcute(codexec2[1], myenv).numeric);
 			}
 			else if (codexec2[1] == "input int") {
 				//myenv[codexec2[0]]
@@ -748,6 +754,44 @@ intValue run(string code, varmap &myenv) {
 		else if (codexec[0] == "dump") {
 			myenv.dump();
 		}
+		else if (codexec[0] == "file") {
+			// Opening, reading, writing or closing file.
+			// File handle is an integer.
+
+			// codexec2[1] is value.
+			vector<string> codexec2 = split(codexec[1], ' ', 1), codexec3;
+			parameter_check(2);
+			string &op = codexec2[0];
+			if (op == "close") {
+				fclose(files[calcute(codexec2[1], myenv).numeric]);
+				files.erase(calcute(codexec2[1], myenv).numeric);
+			}
+			else if (op == "write") {
+				codexec3 = split(codexec2[1], ',', 1);
+				fputs(calcute(codexec3[1], myenv).str.c_str(), files[calcute(codexec3[0], myenv).numeric]);
+			}
+			else {
+				if (op == "open") {
+					// file open [var]=[filename],[mode]
+					codexec3 = split(codexec2[1], '=', 1);
+					vector<string> codexec4 = split(codexec3[1], ',', 1);
+					int n = 0;
+					while (files.count(n++));
+					if (codexec3[0].find(":") != string::npos) {
+						codexec3[0] = curexp(codexec3[0], myenv);
+					}
+					myenv[codexec3[0]] = n;
+					files[n] = fopen(calcute(codexec4[0], myenv).str.c_str(), calcute(codexec4[1], myenv).str.c_str());
+				}
+				else if (op == "read") {
+					// ...
+				}
+			}
+			
+		}
+		else if (codexec[0] == "import") {
+			// Do nothing
+		}
 	add_exp: if (jmptable.count(execptr)) {
 		execptr = jmptable[execptr];
 	}
@@ -820,6 +864,17 @@ intValue preRun(string code) {
 					newenv.set_global(codexec[1] + ".__type__", "class");
 					curclass = codexec[1] + ".";
 				}
+				else if (codexec[0] == "import") {
+					parameter_check(2);
+					vector<string> codexec2 = split(codestream[i], ' ', 1);
+					FILE *f = fopen(codexec2[1].c_str(), "r");
+					if (f != NULL) {
+						while (!feof(f)) {
+							fgets(buf1, 65536, f);
+							codestream.push_back(buf1);
+						}
+					}
+				}
 				break;
 			case 1:
 				if (codexec[0] == "init:") {
@@ -869,12 +924,18 @@ intValue preRun(string code) {
 }
 
 int main(int argc, char* argv[]) {
-	// Test
-	//preRun("set a=5\nset a.5=4\nset a.4=3\nset a.3=2\nset a:a:a:a:a=1\nprint a.2");
-	//preRun("set a=input\nprint a");
-	string code = "set a=new list\nrun a.append 3\nrun a.append 4\nrun a.append 5\nrun a.insert 1,9\nfor i=0~a.length:\n\tprint a:i\n\n";
-	cout << code << endl;
+	if (argc < 1) {
+		cout << "Usage: " << argv[0] << " filename";
+		return 1;
+	}
+	FILE *f = fopen(argv[1], "r");
+	string code = "";
+	if (f != NULL) {
+		while (!feof(f)) {
+			fgets(buf1, 65536, f);
+			code += buf1;
+		}
+	}
 	preRun(code);
-	// End
 	return 0;
 }
