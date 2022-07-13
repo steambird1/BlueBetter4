@@ -13,3 +13,40 @@ class list:
 			set this:i=this:(i-1)
 		set this.length=this.length+1
 		set this:pos=data
+
+function int_input:
+	set temp=__input_int
+	return temp
+
+function input:
+	set temp=__input
+	return temp
+
+function atof string:
+	set temp=__int string
+	return temp
+
+function atoi string:
+	return floor (atof string)
+
+function ord char:
+	set temp=__ord char
+	return temp
+
+function chr ascii:
+	set temp=__chr ascii
+	return temp
+
+function floor num:
+	set temp=__intg num
+	return temp
+
+function ceil num:
+	set temp=__intg num+0.5
+	return temp
+
+function substr origin begin length:
+	set newstr=""
+	for i=begin~begin+length:
+		set newstr=newstr+origin#i
+	return newstr

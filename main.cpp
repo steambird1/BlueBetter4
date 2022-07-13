@@ -41,7 +41,8 @@ int getIndentRaw(string str, int maxfetch = -1) {
 
 // quotes and dinner will be reserved
 // N maxsplit = N+1 elements. -1 means no maxsplit
-vector<string> split(string str, char delimiter = '\n', int maxsplit = -1, char allowedquotes = '"', char allowedinner = '\\') {
+vector<string> split(string str, char delimiter = '\n', int maxsplit = -1, char allowedquotes = '"', char allowedinner = -1) {
+	// Manually breaks
 	bool qmode = false, dmode = false;
 	vector<string> result;
 	string strtmp = "";
@@ -268,7 +269,7 @@ intValue getValue(string single_expr, varmap &vm) {
 	}
 	char &fch = single_expr[0];
 	if (fch < '0' || fch > '9') {
-		if (fch == 'n' || fch == '-') {
+		if (fch == '-') {
 			neg = -1;
 			single_expr.erase(single_expr.begin());
 		}
@@ -302,7 +303,30 @@ intValue getValue(string single_expr, varmap &vm) {
 			vector<string> arg;
 			vector<intValue> ares;
 			if (spl.size() >= 2) {
-				arg = split(spl[1], ',');
+				//arg = split(spl[1], ',');
+				int quotes = 0;
+				string tmp = "";
+				for (auto &i : spl[1]) {
+					if (i == '(') {
+						if (quotes) tmp += i;
+						quotes++;
+					}
+					else if (i == ')') {
+						quotes--;
+						if (quotes) tmp += i;
+					}
+					else if (i == ',' && (!quotes)) {
+						arg.push_back(tmp);
+						tmp = "";
+					}
+					else {
+						tmp += i;
+					}
+				}
+				if (tmp.length()) arg.push_back(tmp);
+			}
+			else {
+				arg.push_back(spl[1]);
 			}
 			if (arg.size() < argname.size()) return null;
 			for (size_t i = 0; i < arg.size(); i++) {
@@ -323,7 +347,7 @@ int priority(char op) {
 	case ')':
 		return 5;
 		break;
-	case ':':
+	case ':': case '#':
 		return 4;
 		break;
 	case '*': case '/': case '%':
@@ -354,6 +378,21 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 	case ':':
 		// As for this, 'first' should be direct var-name
 		return getValue(vm[first.str + "." + second.str], vm);
+		break;
+	case '#':
+		// To get a position for string, or power for integer.
+		if (first.isNumeric) {
+			return pow(first.numeric, second.numeric);
+		}
+		else {
+			ulong64 ul = ulong64(second.numeric);
+			if (ul >= first.str.length()) {
+				return null;
+			}
+			else {
+				return string({ first.str[ul] });
+			}
+		}
 		break;
 	case '*':
 		if (first.isNumeric) {
@@ -436,15 +475,19 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 	}
 }
 
+// The interpretion of '\\', '"' will be finished here! Check the code.
 intValue calcute(string expr, varmap &vm) {
 	stack<char> op;
 	stack<string> val;
 	string operand = "";
-	bool cur_neg = false;
+	bool cur_neg = false, qmode = false, dmode = false;
 	int ignore = 0;
 	for (size_t i = 0; i < expr.length(); i++) {
+		if (expr[i] == '"' && (!dmode)) qmode = !qmode;
+		if (expr[i] == '\\' && (!dmode)) dmode = true;
+		else dmode = false;
 		int my_pr = priority(expr[i]), op_pr = -2;
-		if (my_pr >= 0) {
+		if (my_pr >= 0 && (!qmode) && (!dmode)) {
 			if (expr[i] == '(') {
 				// Here should be operator previously.
 				if (i == 0 || priority(expr[i - 1]) >= 0) {
@@ -569,6 +612,10 @@ string curexp(string exp, varmap &myenv) {
 
 map<int, FILE*> files;
 
+bool beginWith(string origin, string judger) {
+	return origin.length() >= judger.length() && origin.substr(0, judger.length()) == judger;
+}
+
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv) {
@@ -617,22 +664,48 @@ intValue run(string code, varmap &myenv) {
 				myenv[codexec2[0] + ".__type__"] = azer[1];
 				run(myenv[azer[1] + ".__init__"], vm);
 			}
-			else if (codexec2[1] == "input") {
+#pragma region Internal Calcutions
+			// To be function-like call later
+			else if (codexec2[1] == "__input") {
 				fgets(buf1, 65536, stdin);
 				myenv[codexec2[0]] = intValue(buf1).unformat();
 			}
-			else if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "int ") {
-				myenv[codexec2[0]] = atof(calcute(codexec2[1], myenv).str.c_str());
+			else if (beginWith(codexec2[1], "__int ")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				parameter_check3(2, "Operator number");
+				myenv[codexec2[0]] = intValue(atof(calcute(codexec3[1], myenv).str.c_str())).unformat();
 			}
-			else if (codexec2[1].length() > 5 && codexec2[1].substr(0, 5) == "intg ") {
-				myenv[codexec2[0]] = int(calcute(codexec2[1], myenv).numeric);
+			else if (beginWith(codexec2[1], "__chr ")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				parameter_check3(2, "Operator number");
+				char ch = char(int(calcute(codexec3[1], myenv).numeric));
+				myenv[codexec2[0]] = intValue(string({ ch })).unformat();
 			}
-			else if (codexec2[1] == "input int") {
+			else if (beginWith(codexec2[1], "__ord ")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				parameter_check3(2, "Operator number");
+				intValue cv = calcute(codexec3[1], myenv);
+				if (cv.str.length()) {
+					myenv[codexec2[0]] = intValue(int(char((cv.str[0])))).unformat();
+				}
+				else {
+					myenv[codexec2[0]] = intValue(-1).unformat();
+				}
+				
+			}
+			else if (beginWith(codexec2[1], "__intg ")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				intValue rsz = calcute(codexec3[1], myenv);
+				int res = int(rsz.numeric);
+				myenv[codexec2[0]] = intValue(res).unformat();
+			}
+			else if (codexec2[1] == "__input_int") {
 				//myenv[codexec2[0]]
 				double dv;
 				scanf("%lf", &dv);
 				myenv[codexec2[0]] = intValue(dv).unformat();
 			}
+#pragma endregion
 			else {
 				myenv[codexec2[0]] = calcute(codexec2[1], myenv).unformat();
 			}
@@ -763,12 +836,26 @@ intValue run(string code, varmap &myenv) {
 			parameter_check(2);
 			string &op = codexec2[0];
 			if (op == "close") {
-				fclose(files[calcute(codexec2[1], myenv).numeric]);
-				files.erase(calcute(codexec2[1], myenv).numeric);
+				int f = calcute(codexec2[1], myenv).numeric;
+				if (files.count(f)) {
+					fclose(files[f]);
+					files.erase(f);
+				}
+				else {
+					cout << "Incorrect file: " << f << endl;
+				}
+				
 			}
 			else if (op == "write") {
 				codexec3 = split(codexec2[1], ',', 1);
-				fputs(calcute(codexec3[1], myenv).str.c_str(), files[calcute(codexec3[0], myenv).numeric]);
+				int f = calcute(codexec3[0], myenv).numeric;
+				if (files.count(f)) {
+					fputs(calcute(codexec3[1], myenv).str.c_str(), files[f]);
+				}
+				else {
+					cout << "Incorrect file: " << f << endl;
+				}
+				
 			}
 			else {
 				if (op == "open") {
@@ -780,11 +867,44 @@ intValue run(string code, varmap &myenv) {
 					if (codexec3[0].find(":") != string::npos) {
 						codexec3[0] = curexp(codexec3[0], myenv);
 					}
-					myenv[codexec3[0]] = n;
-					files[n] = fopen(calcute(codexec4[0], myenv).str.c_str(), calcute(codexec4[1], myenv).str.c_str());
+					myenv[codexec3[0]] = intValue(n).unformat();
+					intValue ca = calcute(codexec4[0], myenv);
+					string fn = ca.str;
+					files[n] = fopen(fn.c_str(), calcute(codexec4[1], myenv).str.c_str());
+					if (files[n] == NULL) {
+						cout << "Cannot open file " << fn << " as " << n << ", errno: " << errno << endl;
+					}
 				}
 				else if (op == "read") {
-					// ...
+					// file read [store]=[var]
+					codexec3 = split(codexec2[1], '=', 1);
+					int fid = calcute(codexec3[1], myenv).numeric;
+					if (files.count(fid) && !feof(files[fid])) {
+						string res = "";
+						char c;
+						while ((!feof(files[fid])) && (c = fgetc(files[fid])) != '\n') res += c;
+						if (codexec3[0].find(":") != string::npos) {
+							codexec3[0] = curexp(codexec3[0], myenv);
+						}
+						myenv[codexec3[0]] = intValue(res).unformat();
+					}
+					else {
+						cout << "Incorrect file: " << fid << endl;
+					}
+				}
+				else if (op == "vaild") {
+					// file vaild [store]=[var]
+					codexec3 = split(codexec2[1], '=', 1);
+					if (codexec3[0].find(":") != string::npos) {
+						codexec3[0] = curexp(codexec3[0], myenv);
+					}
+					int fid = calcute(codexec3[1], myenv).numeric;
+					if (files.count(fid) && !feof(files[fid])) {
+						myenv[codexec3[0]] = intValue(1).unformat();
+					}
+					else {
+						myenv[codexec3[0]] = intValue(0).unformat();
+					}
 				}
 			}
 			
@@ -924,12 +1044,19 @@ intValue preRun(string code) {
 }
 
 int main(int argc, char* argv[]) {
+	// Test: Input code here:
+	string code = "";
+	if (code.length()) {
+		cout << code << endl << "---" << endl << endl;
+		return preRun(code).numeric;
+	}
+	// End
+
 	if (argc < 1) {
 		cout << "Usage: " << argv[0] << " filename";
 		return 1;
 	}
 	FILE *f = fopen(argv[1], "r");
-	string code = "";
 	if (f != NULL) {
 		while (!feof(f)) {
 			fgets(buf1, 65536, f);
