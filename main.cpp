@@ -299,38 +299,41 @@ intValue getValue(string single_expr, varmap &vm) {
 				nvm.set_this(&vm, xspl[0]);
 				xspl[0] = vm[spl[0] + ".__type__"];
 			}
-			vector<string> argname = split(vm[spl[0] + ".__arg__"], ' ');
-			vector<string> arg;
-			vector<intValue> ares;
-			if (spl.size() >= 2) {
-				//arg = split(spl[1], ',');
-				int quotes = 0;
-				string tmp = "";
-				for (auto &i : spl[1]) {
-					if (i == '(') {
-						if (quotes) tmp += i;
-						quotes++;
+			string args = vm[spl[0] + ".__arg__"];
+			if (args.length()) {
+				vector<string> argname = split(args, ' ');
+				vector<string> arg;
+				vector<intValue> ares;
+				if (spl.size() >= 2) {
+					//arg = split(spl[1], ',');
+					int quotes = 0;
+					string tmp = "";
+					for (auto &i : spl[1]) {
+						if (i == '(') {
+							if (quotes) tmp += i;
+							quotes++;
+						}
+						else if (i == ')') {
+							quotes--;
+							if (quotes) tmp += i;
+						}
+						else if (i == ',' && (!quotes)) {
+							arg.push_back(tmp);
+							tmp = "";
+						}
+						else {
+							tmp += i;
+						}
 					}
-					else if (i == ')') {
-						quotes--;
-						if (quotes) tmp += i;
-					}
-					else if (i == ',' && (!quotes)) {
-						arg.push_back(tmp);
-						tmp = "";
-					}
-					else {
-						tmp += i;
-					}
+					if (tmp.length()) arg.push_back(tmp);
 				}
-				if (tmp.length()) arg.push_back(tmp);
-			}
-			else {
-				arg.push_back(spl[1]);
-			}
-			if (arg.size() < argname.size()) return null;
-			for (size_t i = 0; i < arg.size(); i++) {
-				nvm[argname[i]] = (calcute(arg[i], vm)).unformat();
+				else {
+					arg.push_back(spl[1]);
+				}
+				if (arg.size() < argname.size()) return null;
+				for (size_t i = 0; i < arg.size(); i++) {
+					nvm[argname[i]] = (calcute(arg[i], vm)).unformat();
+				}
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
 			return run(vm[spl[0]], nvm);
