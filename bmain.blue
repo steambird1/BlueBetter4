@@ -14,6 +14,25 @@ class list:
 		set this.length=this.length+1
 		set this:pos=data
 
+function isnull obj:
+	if obj=null:
+		return 1
+	else:
+		return 0
+
+function len obj:
+	set temp=__len obj
+	return temp
+
+function boolean obj:
+	if isnull obj:
+		return 0
+	if obj=0:
+		return 0
+	if len obj=0:
+		return 0
+	return 1
+
 function int_input:
 	set temp=__input_int
 	return temp

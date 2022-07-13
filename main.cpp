@@ -693,6 +693,11 @@ intValue run(string code, varmap &myenv) {
 				}
 				
 			}
+			else if (beginWith(codexec2[1], "__len")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				intValue rsz = calcute(codexec3[1], myenv);
+				myenv[codexec2[0]] = intValue(rsz.str.length()).unformat();
+			}
 			else if (beginWith(codexec2[1], "__intg ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
 				intValue rsz = calcute(codexec3[1], myenv);
@@ -721,12 +726,13 @@ intValue run(string code, varmap &myenv) {
 				while (getIndentRaw(codestream[++rptr]) != ind);	// Go on until aligned else / elif
 				rptr--;												// Something strange
 				size_t eptr = execptr;
-				while (eptr != codestream.size() - 1) {
+				while (eptr < codestream.size() - 1) {
 					// End if indent equals and not 'elif' or 'else'.
 					//if () break;
 					string s = codestream[++eptr];
 					int r = getIndent(s);
 					vector<string> sp = split(s, ' ', 1);
+					if (!sp.size()) continue;
 					if (r == ind && sp[0] != "elif" && sp[0] != "else:") break;
 				}
 				jmptable[rptr] = eptr;
@@ -734,11 +740,12 @@ intValue run(string code, varmap &myenv) {
 			else {
 				// Go on elif / else
 				size_t eptr = execptr + 1;
-				while (eptr != codestream.size() - 1) {
+				while (eptr < codestream.size() - 1) {
 					// End if indent equals and not 'elif' or 'else'.
 					string s = codestream[++eptr];
 					int r = getIndent(s);
 					vector<string> sp = split(s, ' ', 1);
+					if (!sp.size()) continue;
 					if (r == ind) break;
 				}
 				execptr = eptr;
