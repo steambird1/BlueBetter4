@@ -1276,7 +1276,7 @@ int main(int argc, char* argv[]) {
 		}
 	}
 	// debug
-	cout << code << endl << "---" << endl << endl;
+	//cout << code << endl << "---" << endl << endl;
 	// end
 	preRun(code);
 	return 0;
