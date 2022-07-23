@@ -11,6 +11,7 @@
 #include <vector>
 #include <string>
 #include <cstdio>
+#include <set>
 using namespace std;
 
 // Pre declare
@@ -22,6 +23,11 @@ intValue calcute(string expr, varmap &vm);
 const int max_indent = 65536;
 
 char buf0[255], buf01[255], buf1[65536];
+
+// It's so useful that everyone needs it
+bool beginWith(string origin, string judger) {
+	return origin.length() >= judger.length() && origin.substr(0, judger.length()) == judger;
+}
 
 // At most delete maxfetch.
 int getIndent(string &str, int maxfetch = -1) {
@@ -169,13 +175,15 @@ class varmap {
 		void pop() {
 			vs.pop_back();
 		}
+		// If return object serial, DON'T MODIFY IT !
 		string& operator[](string key) {
 #pragma region Debug Purpose
 			//cout << "Require key: " << key << endl;
 #pragma endregion
 			// Find where it is
 			if (key == "this") {
-				return (*this_source)[this_name];
+				// Must be class
+				return (*this_source)[this_name] = this_source->serial(this_name);
 			}
 			else if (key.substr(0, 5) == "this.") {
 				vector<string> s = split(key, '.', 1);
@@ -183,13 +191,65 @@ class varmap {
 			}
 			else {
 				for (vit i = vs.rbegin(); i != vs.rend(); i++) {
-					if (i->count(key)) return ((*i))[key];
+					if (i->count(key)) {
+						if (unserial.count((*i)[key + ".__type__"])) {
+							return ((*i))[key];
+						}
+						else {
+							return ((*i))[key] = serial(key);
+						}
+						
+					}
 				}
 				if (glob_vs.count(key)) return glob_vs[key];
-				if (!vs[vs.size() - 1].count(key)) vs[vs.size() - 1][key] = "null";
+				if (key.find('.') != string::npos) {
+					// Must in same layer
+					vector<string> la = split(key, '.', 1);
+					for (vit i = vs.rbegin(); i != vs.rend(); i++) {
+						if (i->count(la[0])) {
+							(*i)[key] = "null";
+							return (*i)[key];
+						}
+					}
+				}
+				else {
+					if (!vs[vs.size() - 1].count(key)) vs[vs.size() - 1][key] = "null";
+				}
 				return vs[vs.size() - 1][key];
 			}
 			
+		}
+		string serial(string name) {
+			// Note: global variable can't contain class
+			
+			string tmp = mymagic;
+			for (vit i = vs.rbegin(); i != vs.rend(); i++) {
+				if (i->count(name)) {
+					for (auto &j : (*i)) {
+						if (beginWith(j.first, name + ".")) {
+							vector<string> spl = split(j.first, '.', 1);
+							// debug
+							//cout << "add: " << string(".") + spl[1] + "=" + j.second + "\n" << endl;
+							// end
+							tmp += string(".") + spl[1] + "=" + j.second + "\n";
+						}
+					}
+				}
+			}
+			return tmp;
+		}
+		void deserial(string name, string serial) {
+			if (!beginWith(serial, mymagic)) {
+				return;
+			}
+			serial = serial.substr(mymagic.length());
+			vector<string> lspl = split(serial);
+			for (auto &i : lspl) {
+				vector<string> itemspl = split(i, '=', 1);
+				if (itemspl.size() < 2) itemspl.push_back("null");
+				(*this)[name + itemspl[0]] = itemspl[1];
+			}
+			(*this)[name] = "null";
 		}
 		void set_global(string key, string value = "null") {
 			glob_vs[key] = value;
@@ -220,7 +280,9 @@ class varmap {
 		string															this_name = "";
 		varmap															*this_source;
 			// Where 'this' points. use '.'
+		const string mymagic = "__object$\n";
 private:
+	const set<string> unserial = { "", "function", "class", "null" };
 	vector<map<string, string> >										vs;
 	// Save evalable thing, like "" for string
 		static map<string, string>										glob_vs;
@@ -284,7 +346,7 @@ intValue getValue(string single_expr, varmap &vm) {
 		vector<string> spl = split(single_expr, ' ', 1);
 		vector<string> dotspl = split(spl[0], '.', 1);
 		string set_this = "";
-		if (vm[dotspl[0] + ".__type__"] != "null" && vm[dotspl[0] + ".__type__"] != "function") {
+		if (dotspl.size() > 1 && vm[dotspl[0] + ".__type__"] != "null" && vm[dotspl[0] + ".__type__"] != "function") {
 			set_this = dotspl[0];
 			spl[0] = vm[dotspl[0] + ".__type__"] + "." + dotspl[1];
 		}
@@ -304,6 +366,7 @@ intValue getValue(string single_expr, varmap &vm) {
 				vector<string> argname = split(args, ' ');
 				vector<string> arg;
 				vector<intValue> ares;
+				bool str = false, dmode = false;
 				if (spl.size() >= 2) {
 					//arg = split(spl[1], ',');
 					int quotes = 0;
@@ -316,14 +379,22 @@ intValue getValue(string single_expr, varmap &vm) {
 						else if (i == ')') {
 							quotes--;
 							if (quotes) tmp += i;
+						} else if (i == '\\' && (!dmode)) {
+							dmode = true;
+							tmp += i;
 						}
-						else if (i == ',' && (!quotes)) {
+						else if (i == '"' && (!dmode)) {
+							str = !str;
+							tmp += i;
+						}
+						else if (i == ',' && (!quotes) && (!str)) {
 							arg.push_back(tmp);
 							tmp = "";
 						}
 						else {
 							tmp += i;
 						}
+						dmode = false;
 					}
 					if (tmp.length()) arg.push_back(tmp);
 				}
@@ -541,7 +612,7 @@ intValue calcute(string expr, varmap &vm) {
 					val.push(string(cur_neg ? "-" : "") + operand);
 					cur_neg = false;
 				}
-				if (expr[i] == '-' && (i == 0 || expr[i - 1] == '(')) {
+				if (expr[i] == '-' && (i == 0 || expr[i - 1] == '(' || expr[i - 1] == ',' || expr[i - 1] == ' ')) {
 					cur_neg = true;
 				}
 				else {
@@ -615,20 +686,77 @@ string curexp(string exp, varmap &myenv) {
 
 map<int, FILE*> files;
 
-bool beginWith(string origin, string judger) {
-	return origin.length() >= judger.length() && origin.substr(0, judger.length()) == judger;
-}
+class jumpertable {
+public:
+
+	jumpertable() {
+
+	}
+
+	size_t& operator [](size_t origin) {
+		if ((!jmper.count(origin)) || jmper[origin].size() < 1) {
+			jmper[origin] = vector<size_t>({ UINT16_MAX });
+			return jmper[origin][0];
+		}
+		else {
+			//return jmper[origin][jmper[origin].size() - 1];
+			jmper[origin].push_back(jmper[origin][jmper[origin].size()-1]);
+			return jmper[origin][jmper[origin].size() - 1];
+		}
+	}
+
+	bool revert(size_t origin, size_t revert_from) {
+		bool flag = false;
+		while (jmper[origin].size() && jmper[origin][jmper[origin].size()-1] == revert_from) {
+			jmper[origin].pop_back();
+			flag = true;
+		}
+		if (flag) reverted[origin] = revert_from;
+		return flag;
+	}
+
+	bool revert_all(size_t revert_from) {
+		clear_revert();
+		bool flag = false;
+		for (auto &i : jmper) {
+			flag |= revert(i.first, revert_from);
+		}
+		return flag;
+	}
+
+	void rollback() {
+		for (auto &i : reverted) {
+			jmper[i.first].push_back(i.second);
+		}
+		clear_revert();
+	}
+
+	void clear_revert() {
+		reverted = map<size_t, size_t>();
+	}
+
+	bool count(size_t origin) {
+		return jmper.count(origin);
+	}
+
+private:
+	map<size_t, vector<size_t> > jmper;
+	map<size_t, size_t> reverted;
+};
 
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv) {
 	vector<string> codestream = split(code);
 	size_t execptr = 0;
-	map<size_t, size_t> jmptable;
+	jumpertable jmptable;
 	int prevind = 0;
+	bool noroll = false;
 	while (execptr < codestream.size()) {
 		vector<string> codexec = split(codestream[execptr], ' ', 1);
 		if (codexec.size() && codexec[0][0] == '\n') codexec[0].erase(codexec[0].begin()); // LF, why?
+		jmptable.revert_all(execptr);
+		noroll = false;
 		int ind = getIndent(codexec[0]);
 		if (prevind < ind) myenv.push();
 		else if (prevind > ind) myenv.pop();
@@ -667,8 +795,17 @@ intValue run(string code, varmap &myenv) {
 				myenv[codexec2[0] + ".__type__"] = azer[1];
 				run(myenv[azer[1] + ".__init__"], vm);
 			}
+			else if (beginWith(codexec2[1], "object ")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				parameter_check3(2, "Operator number");
+				myenv.deserial(codexec2[0], calcute(codexec3[1], myenv).str);
+			}
+			else if (beginWith(codexec2[1], "serial ")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				parameter_check3(2, "Operator number");
+				myenv[codexec2[0]] = intValue(myenv.serial(codexec3[1])).unformat();
+			}
 #pragma region Internal Calcutions
-			// To be function-like call later
 			else if (codexec2[1] == "__input") {
 				fgets(buf1, 65536, stdin);
 				myenv[codexec2[0]] = intValue(buf1).unformat();
@@ -737,6 +874,11 @@ intValue run(string code, varmap &myenv) {
 					vector<string> sp = split(s, ' ', 1);
 					if (!sp.size()) continue;
 					if (r == ind && sp[0] != "elif" && sp[0] != "else:") break;
+					if (r < ind) { // Multi-jump at once: Too far
+						// Direct jumps
+						if (jmptable.count(eptr - 1)) eptr = jmptable[eptr - 1];
+						break;
+					}
 				}
 				jmptable[rptr] = eptr;
 			}
@@ -749,7 +891,7 @@ intValue run(string code, varmap &myenv) {
 					int r = getIndent(s);
 					vector<string> sp = split(s, ' ', 1);
 					if (!sp.size()) continue;
-					if (r == ind) break;
+					if (r <= ind) break;
 				}
 				execptr = eptr;
 				goto after_add_exp;
@@ -771,12 +913,32 @@ intValue run(string code, varmap &myenv) {
 				while (eptr != codestream.size() - 1) {
 					// End if indent equals.
 					int r = getIndentRaw(codestream[++eptr]);
-					if (r == ind) break;
+					if (r == ind) {
+						jmptable[--eptr] = execptr;
+						goto after99;
+					}
+					if (r < ind) { // Multi-jump at once: Too far
+						// Direct jumps
+						if (jmptable.count(eptr - 1)) eptr = jmptable[eptr - 1];
+						goto after99;
+					}
 				}
-				jmptable[--eptr] = execptr;
+				jmptable[eptr] = execptr;
+			after99:;
 			}
 			else {
-				while (execptr < codestream.size() && getIndentRaw(codestream[++execptr]) != ind);
+				noroll = true; //  End of statements' life
+				while (execptr != codestream.size()-1 ) {
+					int r = getIndentRaw(codestream[++execptr]);
+					if (r == ind) goto after_add_exp; //break;
+					if (r < ind) { // Multi-jump at once: Too far
+						// Direct jumps
+						if (jmptable.count(execptr - 1)) execptr = jmptable[execptr - 1];
+						goto after_add_exp;
+					}
+				}
+				if (jmptable.count(execptr)) execptr = jmptable[execptr]; // Must not look for execution
+
 				goto after_add_exp;
 
 			}
@@ -794,14 +956,32 @@ intValue run(string code, varmap &myenv) {
 			goto after_add_exp;
 		}
 		else if (codexec[0] == "break") {
+		// Find for looper
+		size_t ep = execptr;
+		int ide;	// The indent to search
+		while (ep > 0) {
+			ep--;
+			string s = codestream[ep];
+			ide = getIndent(s);
+			vector<string> spl = split(s, ' ', 1);
+			if (ide < ind && (spl[0] == "while" || spl[0] == "for")) break;
+
+		}
+		// ep is the position
 			while (execptr != codestream.size() - 1) {
 				execptr++;
 				string s = codestream[execptr];
 				int id = getIndent(s);
-				vector<string> spl = split(s, ' ', 1);
-				if (id < ind && (spl[0] == "while" || spl[0] == "for")) break;
+				//vector<string> spl = split(s, ' ', 1);
+				//if (spl[0] != "for" && spl[0] != "while") continue;
+				if (id == ide) goto after_add_exp;
+				else if (id < ide) {
+					if (jmptable.count(execptr - 1)) execptr = jmptable[execptr - 1];
+					goto after_add_exp;
+				}
 				
 			}
+			if (jmptable.count(execptr)) execptr = jmptable[execptr];
 			goto after_add_exp;
 		}
 		else if (codexec[0] == "for") {
@@ -821,7 +1001,17 @@ intValue run(string code, varmap &myenv) {
 			myenv[codexec2[0]] = current.unformat();
 			if (calcute(myenv[codexec2[0]], myenv).numeric == calcute(rangeobj[1], myenv).numeric) {
 				// Jump where end-of-loop
-				while (execptr < codestream.size() && getIndentRaw(codestream[++execptr]) != ind);
+				noroll = true; //  End of statements' life
+				while (execptr != codestream.size() - 1) {
+					int r = getIndentRaw(codestream[++execptr]);
+					if (r == ind) goto after_add_exp; //break;
+					if (r < ind) { // Multi-jump at once: Too far
+						// Direct jumps
+						if (jmptable.count(execptr - 1)) execptr = jmptable[execptr - 1];
+						goto after_add_exp;
+					}
+				}
+				if (jmptable.count(execptr)) execptr = jmptable[execptr]; // Must not look for execution
 				goto after_add_exp;
 			}
 			else {
@@ -829,13 +1019,29 @@ intValue run(string code, varmap &myenv) {
 				while (eptr != codestream.size() - 1) {
 					// End if indent equals.
 					int r = getIndentRaw(codestream[++eptr]);
-					if (r == ind) break;
+					if (r == ind) {
+						jmptable[eptr-1] = execptr;
+						goto afterset1;
+					}
+					if (r < ind) { // Multi-jump at once: Too far
+						// Direct jumps
+						if (jmptable.count(eptr - 1)) eptr = jmptable[eptr - 1];
+						else jmptable[eptr-1] = execptr;
+						goto afterset1;
+					}
 				}
-				jmptable[--eptr] = execptr;	// Should be changed in 'while' loop??
+				jmptable[eptr] = execptr;	// Should be changed in 'while' loop??
+			afterset1:;
 			}
 		}
 		else if (codexec[0] == "dump") {
+		if (codexec.size() >= 2) {
+			cout << myenv.serial(codexec[1]) << endl;
+		}
+		else {
 			myenv.dump();
+		}
+			
 		}
 		else if (codexec[0] == "file") {
 			// Opening, reading, writing or closing file.
@@ -929,6 +1135,7 @@ intValue run(string code, varmap &myenv) {
 		execptr++;
 	}
 		 after_add_exp: prevind = ind;
+			 if (!noroll) jmptable.rollback();
 	}
 	return null;
 }

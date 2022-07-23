@@ -69,3 +69,19 @@ function substr origin begin length:
 	for i=begin~begin+length:
 		set newstr=newstr+origin#i
 	return newstr
+
+function split origin delimit maxsplit:
+	set res=new list
+	set tmp=""
+	for i=0~len origin:
+		if res.length=maxsplit:
+			break
+		if origin#i=delimit:
+			run res.append tmp
+			set tmp=""
+		else:
+			set tmp=tmp+origin#i
+	if (len tmp)>0:
+		run res.append tmp
+	set s=serial res
+	return s
