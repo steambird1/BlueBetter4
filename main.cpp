@@ -873,14 +873,17 @@ intValue run(string code, varmap &myenv) {
 					int r = getIndent(s);
 					vector<string> sp = split(s, ' ', 1);
 					if (!sp.size()) continue;
-					if (r == ind && sp[0] != "elif" && sp[0] != "else:") break;
+					if (r == ind && sp[0] != "elif" && sp[0] != "else:") goto end101;
 					if (r < ind) { // Multi-jump at once: Too far
 						// Direct jumps
 						if (jmptable.count(eptr - 1)) eptr = jmptable[eptr - 1];
-						break;
+						goto end101;
 					}
 				}
-				jmptable[rptr] = eptr;
+				jmptable[rptr] = codestream.size();	// Already end of code!
+				goto end102;
+			end101: jmptable[rptr] = eptr;
+			end102:;
 			}
 			else {
 				// Go on elif / else
@@ -913,13 +916,8 @@ intValue run(string code, varmap &myenv) {
 				while (eptr != codestream.size() - 1) {
 					// End if indent equals.
 					int r = getIndentRaw(codestream[++eptr]);
-					if (r == ind) {
+					if (r <= ind) {
 						jmptable[--eptr] = execptr;
-						goto after99;
-					}
-					if (r < ind) { // Multi-jump at once: Too far
-						// Direct jumps
-						if (jmptable.count(eptr - 1)) eptr = jmptable[eptr - 1];
 						goto after99;
 					}
 				}
@@ -1019,14 +1017,8 @@ intValue run(string code, varmap &myenv) {
 				while (eptr != codestream.size() - 1) {
 					// End if indent equals.
 					int r = getIndentRaw(codestream[++eptr]);
-					if (r == ind) {
+					if (r <= ind) {
 						jmptable[eptr-1] = execptr;
-						goto afterset1;
-					}
-					if (r < ind) { // Multi-jump at once: Too far
-						// Direct jumps
-						if (jmptable.count(eptr - 1)) eptr = jmptable[eptr - 1];
-						else jmptable[eptr-1] = execptr;
 						goto afterset1;
 					}
 				}
@@ -1262,7 +1254,7 @@ intValue preRun(string code) {
 
 int main(int argc, char* argv[]) {
 	// Test: Input code here:
-	string code = "";
+	string code = "", file = "";
 	if (code.length()) {
 		cout << code << endl << "---" << endl << endl;
 		return preRun(code).numeric;
@@ -1273,13 +1265,19 @@ int main(int argc, char* argv[]) {
 		cout << "Usage: " << argv[0] << " filename";
 		return 1;
 	}
-	FILE *f = fopen(argv[1], "r");
+	if (!file.length()) {
+		file = argv[1];
+	}
+	FILE *f = fopen(file.c_str(), "r");
 	if (f != NULL) {
 		while (!feof(f)) {
 			fgets(buf1, 65536, f);
 			code += buf1;
 		}
 	}
+	// debug
+	cout << code << endl << "---" << endl << endl;
+	// end
 	preRun(code);
 	return 0;
 }
