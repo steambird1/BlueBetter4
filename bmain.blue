@@ -24,6 +24,12 @@ function len obj:
 	set temp=__len obj
 	return temp
 
+function not obj:
+	if (boolean obj)=0:
+		return 1
+	else:
+		return 0
+
 function boolean obj:
 	if isnull obj:
 		return 0

@@ -419,9 +419,12 @@ intValue getValue(string single_expr, varmap &vm) {
 int priority(char op) {
 	switch (op) {
 	case ')':
-		return 5;
+		return 6;
 		break;
 	case ':': case '#':
+		return 5;
+		break;
+	case '&': case '|':
 		return 4;
 		break;
 	case '*': case '/': case '%':
