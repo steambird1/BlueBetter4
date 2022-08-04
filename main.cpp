@@ -990,6 +990,9 @@ intValue run(string code, varmap &myenv) {
 			parameter_check(2);
 			if (codexec[1].length()) codexec[1].pop_back();
 			vector<string> codexec2 = split(codexec[1], '=', 1);
+			if (codexec2[0].find(":") != string::npos) {
+				codexec2[0] = curexp(codexec2[0], myenv);
+			}
 			vector<string> rangeobj = split(codexec2[1], '~');
 			intValue stepper = 1, current;
 			if (rangeobj.size() >= 3) stepper = calcute(rangeobj[2], myenv);
