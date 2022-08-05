@@ -16,3 +16,29 @@ class disjoint:
 		set this:(this.find a)=(this.find b)
 	function is_same a b:
 		return (this.find a)=(this.find b)
+
+run "Using quick sort"
+class sorter:
+	function setlist listobj:
+		set this.lister=listobj
+	function _sort left right:
+		if not (left<right):
+			return null
+		set lister=object this.lister
+		set i=left
+		set j=right
+		set align=lister:i
+		while i<j:
+			while not (lister:i>align):
+				set i=i+1
+			while not (lister:j<align):
+				set j=j-1
+			set tmp=lister:i
+			set lister:i=lister:j
+			set lister:j=tmp
+		set lister:i=align
+		set this.lister=serial lister
+		run this._sort left,(mid-1)
+		run this._sort (mid+1),right
+	function sort:
+		run this._sort 0,(lister.length-1)
