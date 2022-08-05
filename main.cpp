@@ -1349,7 +1349,7 @@ int main(int argc, char* argv[]) {
 
 	// Test: Input code here:
 #pragma region Compiler Test Option
-	string code = "set a=int_input\nset b=int_input\nprint a+b", file = "";
+	string code = "", file = "";
 	in_debug = true;
 #pragma endregion
 	// End
