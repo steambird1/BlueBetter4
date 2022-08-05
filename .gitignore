@@ -260,3 +260,5 @@ paket-files/
 __pycache__/
 *.pyc
 /test.txt
+/test3.blue
+/algo_test.blue

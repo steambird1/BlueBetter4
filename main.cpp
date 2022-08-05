@@ -12,7 +12,10 @@
 #include <string>
 #include <cstdio>
 #include <set>
+#include <windows.h>
 using namespace std;
+
+bool __spec = false;
 
 // Pre declare
 class varmap;
@@ -20,9 +23,28 @@ struct intValue;
 intValue run(string code, varmap &myenv);
 intValue calcute(string expr, varmap &vm);
 
+HANDLE stdouth;
+void setColor(DWORD color) {
+	SetConsoleTextAttribute(stdouth, color);
+}
+
+inline void begindout() {
+	setColor(FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+}
+
+inline void endout() {
+	setColor(FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN);
+}
+
+inline void specialout() {
+	setColor(FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+}
+
 const int max_indent = 65536;
 
 char buf0[255], buf01[255], buf1[65536];
+bool in_debug = false;	// Runner debug option.
+set<size_t> breakpoints;
 
 // It's so useful that everyone needs it
 bool beginWith(string origin, string judger) {
@@ -407,7 +429,14 @@ intValue getValue(string single_expr, varmap &vm) {
 				}
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
-			return run(vm[spl[0]], nvm);
+			string s = vm[spl[0]];
+			if (s == "null" || s.length() == 0) {
+				cout << "Warning: Call of null function " << spl[0] << endl;
+			}
+			__spec = true;
+			auto r = run(s, nvm);
+			__spec = false;
+			return r;
 		}
 		else {
 			return getValue(vm[single_expr], vm);
@@ -611,14 +640,20 @@ intValue calcute(string expr, varmap &vm) {
 			}
 			else if (ignore <= 0) {
 				// May check here.
-				if (operand.length()) {
-					val.push(string(cur_neg ? "-" : "") + operand);
-					cur_neg = false;
-				}
 				if (expr[i] == '-' && (i == 0 || expr[i - 1] == '(' || expr[i - 1] == ',' || expr[i - 1] == ' ')) {
-					cur_neg = true;
+					if (i > 0 && (expr[i - 1] == ',' || expr[i - 1] == ' ')) {
+						// It's the beginning of function parameters!
+						operand += expr[i];
+					}
+					else {
+						cur_neg = true;
+					}
 				}
 				else {
+					if (operand.length()) {
+						val.push(string(cur_neg ? "-" : "") + operand);
+						cur_neg = false;
+					}
 					while ((!op.empty()) && (op_pr = priority(op.top())) > my_pr) {
 						intValue v1, v2;
 						char mc = op.top();
@@ -675,6 +710,7 @@ intValue calcute(string expr, varmap &vm) {
 #define parameter_check(req) do {if (codexec.size() < req) {cout << "Error: required parameter not given (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
 #define parameter_check2(req,ext) do {if (codexec2.size() < req) {cout << "Error: required parameter not given in sub command " << ext << " (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
 #define parameter_check3(req,ext) do {if (codexec3.size() < req) {cout << "Error: required parameter not given in sub command " << ext << " (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
+#define dshell_check(req) do {if (spl.size() < req) {cout << "Bad command" << endl; exit(1);}} while (false)
 
 string curexp(string exp, varmap &myenv) {
 	vector<string> dasher = split(exp, ':');
@@ -756,6 +792,53 @@ intValue run(string code, varmap &myenv) {
 	int prevind = 0;
 	bool noroll = false;
 	while (execptr < codestream.size()) {
+#pragma region User Debugger
+		if (in_debug && (!__spec)) {
+			begindout();
+			cout << "-> Pre-execute" << endl;
+			string command = "";
+			if (breakpoints.count(execptr)) {
+				do {
+					cout << "-> ";
+					getline(cin, command);
+					vector<string> spl = split(command, ' ', 1);
+					if (spl.size() <= 0) continue;
+					if (spl[0] == "break") {
+						dshell_check(2);
+						breakpoints.insert(atoi(spl[1].c_str()));
+					}
+					else if (spl[0] == "bdel") {
+						if (breakpoints.count(atoi(spl[1].c_str()))) breakpoints.erase(atoi(spl[1].c_str()));
+					}
+					else if (spl[0] == "blist") {
+						for (auto &i : breakpoints) cout << i << " ";
+						cout << endl;
+					}
+					else if (spl[0] == "current") {
+						cout << "Current line:\n" << codestream[execptr] << endl;
+					}
+					else if (spl[0] == "quit") {
+						exit(0);
+					}
+					else if (spl[0] == "view") {
+						dshell_check(2);
+						cout << spl[1] << " = ";
+						calcute(spl[1], myenv).output();
+						cout << endl;
+					}
+					else if (spl[0] == "exec") {
+						dshell_check(2);
+						specialout();
+						__spec = true;
+						run(spl[1], myenv);
+						__spec = false;
+						begindout();
+					}
+				} while (command != "run");
+			}
+			endout();
+		}
+#pragma endregion
 		vector<string> codexec = split(codestream[execptr], ' ', 1);
 		if (codexec.size() && codexec[0][0] == '\n') codexec[0].erase(codexec[0].begin()); // LF, why?
 		jmptable.revert_all(execptr);
@@ -796,7 +879,9 @@ intValue run(string code, varmap &myenv) {
 				vm.set_this(&myenv, codexec2[0]);
 				myenv[codexec2[0]] = "null";
 				myenv[codexec2[0] + ".__type__"] = azer[1];
+				__spec = true;
 				run(myenv[azer[1] + ".__init__"], vm);
+				__spec = false;
 			}
 			else if (beginWith(codexec2[1], "object ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
@@ -810,8 +895,9 @@ intValue run(string code, varmap &myenv) {
 			}
 #pragma region Internal Calcutions
 			else if (codexec2[1] == "__input") {
-				fgets(buf1, 65536, stdin);
-				myenv[codexec2[0]] = intValue(buf1).unformat();
+				string t;
+				getline(cin, t);
+				myenv[codexec2[0]] = intValue(t).unformat();
 			}
 			else if (beginWith(codexec2[1], "__int ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
@@ -1259,31 +1345,71 @@ intValue preRun(string code) {
 }
 
 int main(int argc, char* argv[]) {
+	stdouth = GetStdHandle(STD_OUTPUT_HANDLE);
+
 	// Test: Input code here:
-	string code = "", file = "";
-	if (code.length()) {
-		cout << code << endl << "---" << endl << endl;
-		return preRun(code).numeric;
-	}
+#pragma region Compiler Test Option
+	string code = "set a=int_input\nset b=int_input\nprint a+b", file = "";
+	in_debug = true;
+#pragma endregion
 	// End
 
 	if (argc < 1) {
-		cout << "Usage: " << argv[0] << " filename";
+		cout << "Usage: " << argv[0] << " filename [options]";
 		return 1;
 	}
-	if (!file.length()) {
+	if (!file.length() && !code.length()) {
 		file = argv[1];
 	}
-	FILE *f = fopen(file.c_str(), "r");
-	if (f != NULL) {
-		while (!feof(f)) {
-			fgets(buf1, 65536, f);
-			code += buf1;
+#pragma region Read Options
+	for (int i = 2; i < argc; i++) {
+		string opt = argv[i];
+		if (opt == "--debug") {
+			in_debug = true;
+		}
+	}
+#pragma endregion
+
+	if (!code.length()) {
+		FILE *f = fopen(file.c_str(), "r");
+		if (f != NULL) {
+			while (!feof(f)) {
+				fgets(buf1, 65536, f);
+				code += buf1;
+			}
 		}
 	}
 	// debug
 	//cout << code << endl << "---" << endl << endl;
 	// end
-	preRun(code);
-	return 0;
+
+	if (in_debug) {
+		begindout();
+		cout << "Debug mode" << endl;
+		string command = "";
+		do {
+			cout << "-> ";
+			//cin >> command;
+			getline(cin, command);
+			vector<string> spl = split(command, ' ', 1);
+			if (spl.size() <= 0) continue;
+			if (spl[0] == "break") {
+				dshell_check(2);
+				breakpoints.insert(atoi(spl[1].c_str()));
+			}
+			else if (spl[0] == "bdel") {
+				if (breakpoints.count(atoi(spl[1].c_str()))) breakpoints.erase(atoi(spl[1].c_str()));
+			}
+			else if (spl[0] == "blist") {
+				for (auto &i : breakpoints) cout << i << " ";
+				cout << endl;
+			}
+			else if (spl[0] == "quit") {
+				exit(0);
+			}
+		} while (command != "run");
+		endout();
+	}
+
+	return preRun(code).numeric;
 }

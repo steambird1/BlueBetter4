@@ -1,0 +1,18 @@
+run "Algo.Blue -- BlueBetter Algorithms' Library."
+run "By steambird1 2022."
+
+class disjoint:
+	function find obj:
+		if this:obj=null:
+			set this:obj=obj
+			return obj
+		elif this:obj=obj:
+			return obj
+		else:
+			set result=this.find (this:obj)
+			set this:obj=result
+			return result
+	function union a b:
+		set this:(this.find a)=(this.find b)
+	function is_same a b:
+		return (this.find a)=(this.find b)
