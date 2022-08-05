@@ -202,7 +202,7 @@ class varmap {
 			vs.push_back(map<string,string>());
 		}
 		void pop() {
-			vs.pop_back();
+			if (vs.size()) vs.pop_back();
 		}
 		// If return object serial, DON'T MODIFY IT !
 		string& operator[](string key) {
