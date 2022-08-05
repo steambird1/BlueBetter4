@@ -1350,7 +1350,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 	string code = "", file = "";
-	in_debug = true;
+	in_debug = false;
 #pragma endregion
 	// End
 
