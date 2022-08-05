@@ -794,49 +794,7 @@ intValue run(string code, varmap &myenv) {
 	while (execptr < codestream.size()) {
 #pragma region User Debugger
 		if (in_debug && (!__spec)) {
-			begindout();
-			cout << "-> Pre-execute" << endl;
-			string command = "";
-			if (breakpoints.count(execptr)) {
-				do {
-					cout << "-> ";
-					getline(cin, command);
-					vector<string> spl = split(command, ' ', 1);
-					if (spl.size() <= 0) continue;
-					if (spl[0] == "break") {
-						dshell_check(2);
-						breakpoints.insert(atoi(spl[1].c_str()));
-					}
-					else if (spl[0] == "bdel") {
-						if (breakpoints.count(atoi(spl[1].c_str()))) breakpoints.erase(atoi(spl[1].c_str()));
-					}
-					else if (spl[0] == "blist") {
-						for (auto &i : breakpoints) cout << i << " ";
-						cout << endl;
-					}
-					else if (spl[0] == "current") {
-						cout << "Current line:\n" << codestream[execptr] << endl;
-					}
-					else if (spl[0] == "quit") {
-						exit(0);
-					}
-					else if (spl[0] == "view") {
-						dshell_check(2);
-						cout << spl[1] << " = ";
-						calcute(spl[1], myenv).output();
-						cout << endl;
-					}
-					else if (spl[0] == "exec") {
-						dshell_check(2);
-						specialout();
-						__spec = true;
-						run(spl[1], myenv);
-						__spec = false;
-						begindout();
-					}
-				} while (command != "run");
-			}
-			endout();
+			
 		}
 #pragma endregion
 		vector<string> codexec = split(codestream[execptr], ' ', 1);
@@ -1212,6 +1170,56 @@ intValue run(string code, varmap &myenv) {
 		else if (codexec[0] == "import") {
 			// Do nothing
 		}
+		else if (codexec[0] == "debugger") {
+		if (in_debug) {
+			begindout();
+			cout << "-> Pre-execute" << endl;
+			string command = "";
+			do {
+				cout << "-> ";
+				getline(cin, command);
+				vector<string> spl = split(command, ' ', 1);
+				if (spl.size() <= 0) continue;
+				/*if (spl[0] == "break") {
+					dshell_check(2);
+					breakpoints.insert(atoi(spl[1].c_str()));
+				}
+				else if (spl[0] == "bdel") {
+					if (breakpoints.count(atoi(spl[1].c_str()))) breakpoints.erase(atoi(spl[1].c_str()));
+				}
+				else if (spl[0] == "blist") {
+					for (auto &i : breakpoints) cout << i << " ";
+					cout << endl;
+				}*/
+				 if (spl[0] == "current") {
+					//cout << "Current line:\n" << codestream[execptr] << endl;
+					cout << "Current program:\n";
+					for (size_t i = 0; i < codestream.size(); i++) {
+						printf("%03ld%c  ", i, i==execptr?'*':' ');
+						cout << codestream[i] << endl;
+					}
+				}
+				else if (spl[0] == "quit") {
+					exit(0);
+				}
+				else if (spl[0] == "view") {
+					dshell_check(2);
+					cout << spl[1] << " = ";
+					calcute(spl[1], myenv).output();
+					cout << endl;
+				}
+				else if (spl[0] == "exec") {
+					dshell_check(2);
+					specialout();
+					__spec = true;
+					run(spl[1], myenv);
+					__spec = false;
+					begindout();
+				}
+			} while (command != "run");
+			endout();
+		}
+}
 	add_exp: if (jmptable.count(execptr)) {
 		execptr = jmptable[execptr];
 	}
@@ -1354,7 +1362,7 @@ int main(int argc, char* argv[]) {
 #pragma endregion
 	// End
 
-	if (argc < 1) {
+	if (argc <= 1) {
 		cout << "Usage: " << argv[0] << " filename [options]";
 		return 1;
 	}
@@ -1393,7 +1401,7 @@ int main(int argc, char* argv[]) {
 			getline(cin, command);
 			vector<string> spl = split(command, ' ', 1);
 			if (spl.size() <= 0) continue;
-			if (spl[0] == "break") {
+			/*if (spl[0] == "break") {
 				dshell_check(2);
 				breakpoints.insert(atoi(spl[1].c_str()));
 			}
@@ -1404,7 +1412,7 @@ int main(int argc, char* argv[]) {
 				for (auto &i : breakpoints) cout << i << " ";
 				cout << endl;
 			}
-			else if (spl[0] == "quit") {
+			else */if (spl[0] == "quit") {
 				exit(0);
 			}
 		} while (command != "run");
