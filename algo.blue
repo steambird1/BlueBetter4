@@ -31,9 +31,9 @@ class sorter:
 		set j=right
 		set align=lister:mid
 		while i<j:
-			while (i<lister.length)&(not (lister:i>align)):
+			while (i<lister.length)&(lister:i<align):
 				set i=i+1
-			while (not (j<0))&(not (lister:j<align)):
+			while (not (j<0))&(lister:j>align):
 				set j=j-1
 			if not (i<j):
 				break

@@ -603,7 +603,9 @@ intValue calcute(string expr, varmap &vm) {
 		if (my_pr >= 0 && (!qmode) && (!dmode)) {
 			if (expr[i] == '(') {
 				// Here should be operator previously.
-				if (i == 0 || priority(expr[i - 1]) >= 0) {
+				int t = 1;
+				while (int(i)-t>=0 && expr[i - t] == '(') t--;
+				if (i == 0 || priority(expr[i - t]) >= 0) {
 					op.push('(');
 				}
 				else {
@@ -1400,7 +1402,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test2.blue";
+	string code = "print floor ((2+3)/2)", file = "test2.blue";
 	in_debug = false;
 #else
 	// DO NOT CHANGE
