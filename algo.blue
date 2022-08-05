@@ -22,23 +22,27 @@ class sorter:
 	function setlist listobj:
 		set this.lister=listobj
 	function _sort left right:
+		debugger
 		if not (left<right):
 			return null
 		set lister=object this.lister
+		set mid=(left+right)/2
 		set i=left
 		set j=right
-		set align=lister:i
+		set align=lister:mid
 		while i<j:
-			while not (lister:i>align):
+			while (i<lister.length)&(not (lister:i>align)):
 				set i=i+1
-			while not (lister:j<align):
+			while (not (j<0))&(not (lister:j<align)):
 				set j=j-1
+			if not (i<j):
+				break
 			set tmp=lister:i
 			set lister:i=lister:j
 			set lister:j=tmp
-		set lister:i=align
 		set this.lister=serial lister
 		run this._sort left,(mid-1)
 		run this._sort (mid+1),right
 	function sort:
+		set lister=object this.lister
 		run this._sort 0,(lister.length-1)

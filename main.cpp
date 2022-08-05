@@ -17,7 +17,7 @@ using namespace std;
 
 // To symbol if it's next statement, not next progress
 bool np = false, spec_ovrd = false;
-bool __spec = false;
+int __spec = 0;
 
 // Pre declare
 class varmap;
@@ -42,11 +42,16 @@ inline void specialout() {
 	setColor(FOREGROUND_GREEN | FOREGROUND_INTENSITY);
 }
 
+inline void curlout() {
+	setColor(FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+}
+
 const int max_indent = 65536;
 
 char buf0[255], buf01[255], buf1[65536];
 bool in_debug = false;	// Runner debug option.
-set<size_t> breakpoints;
+//set<size_t> breakpoints;
+vector<string> watches;
 
 // It's so useful that everyone needs it
 bool beginWith(string origin, string judger) {
@@ -329,7 +334,7 @@ string formatting(string origin, char dinner = '\\') {
 }
 
 intValue getValue(string single_expr, varmap &vm) {
-	if (single_expr == "null") return null;
+	if (single_expr == "null" || single_expr == "") return null;
 	if (single_expr[0] == '"' && single_expr[single_expr.length() - 1] == '"') {
 		return formatting(single_expr.substr(1, single_expr.length() - 2));
 	}
@@ -435,9 +440,9 @@ intValue getValue(string single_expr, varmap &vm) {
 			if (s == "null" || s.length() == 0) {
 				cout << "Warning: Call of null function " << spl[0] << endl;
 			}
-			__spec = true;
+			__spec++;
 			auto r = run(s, nvm);
-			__spec = false;
+			__spec--;
 			return r;
 		}
 		else {
@@ -712,7 +717,7 @@ intValue calcute(string expr, varmap &vm) {
 #define parameter_check(req) do {if (codexec.size() < req) {cout << "Error: required parameter not given (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
 #define parameter_check2(req,ext) do {if (codexec2.size() < req) {cout << "Error: required parameter not given in sub command " << ext << " (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
 #define parameter_check3(req,ext) do {if (codexec3.size() < req) {cout << "Error: required parameter not given in sub command " << ext << " (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
-#define dshell_check(req) do {if (spl.size() < req) {cout << "Bad command" << endl; exit(1);}} while (false)
+#define dshell_check(req) do {if (spl.size() < req) {cout << "Bad command" << endl; goto dend;}} while (false)
 
 string curexp(string exp, varmap &myenv) {
 	vector<string> dasher = split(exp, ':');
@@ -797,7 +802,12 @@ intValue run(string code, varmap &myenv) {
 #pragma region User Debugger
 		auto debugcall = [&]() {
 			begindout();
+			__spec = 0;
 			cout << "-> Pre-execute" << endl;
+			curlout();
+			printf("%03ld > ", execptr);
+			cout << codestream[execptr] << endl;
+			begindout();
 			string command = "";
 			do {
 				cout << "-> ";
@@ -808,7 +818,9 @@ intValue run(string code, varmap &myenv) {
 					//cout << "Current line:\n" << codestream[execptr] << endl;
 					cout << "Current program:\n";
 					for (size_t i = 0; i < codestream.size(); i++) {
+						if (i == execptr) curlout();
 						printf("%03ld%c  ", i, i == execptr ? '*' : ' ');
+						begindout();
 						cout << codestream[i] << endl;
 					}
 				}
@@ -824,9 +836,9 @@ intValue run(string code, varmap &myenv) {
 				else if (spl[0] == "exec") {
 					dshell_check(2);
 					specialout();
-					__spec = true;
+					__spec++;
 					run(spl[1], myenv);
-					__spec = false;
+					__spec--;
 					begindout();
 				}
 				else if (spl[0] == "nextp") {
@@ -838,6 +850,7 @@ intValue run(string code, varmap &myenv) {
 					spec_ovrd = true;
 					break;
 				}
+			dend:;
 			} while (command != "run");
 			endout();
 		};
@@ -852,8 +865,14 @@ intValue run(string code, varmap &myenv) {
 		jmptable.revert_all(execptr);
 		noroll = false;
 		int ind = getIndent(codexec[0]);
-		if (prevind < ind) myenv.push();
-		else if (prevind > ind) myenv.pop();
+		while (prevind < ind) {
+			myenv.push();
+			prevind++;
+		}
+		while (prevind > ind) {
+			myenv.pop();
+			prevind--;
+		}
 		// To be filled ...
 		if (codexec[0] == "class" || codexec[0] == "function")  {
 			string s = "";
@@ -887,9 +906,9 @@ intValue run(string code, varmap &myenv) {
 				vm.set_this(&myenv, codexec2[0]);
 				myenv[codexec2[0]] = "null";
 				myenv[codexec2[0] + ".__type__"] = azer[1];
-				__spec = true;
+				__spec++;
 				run(myenv[azer[1] + ".__init__"], vm);
-				__spec = false;
+				__spec--;
 			}
 			else if (beginWith(codexec2[1], "object ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
@@ -1040,13 +1059,21 @@ intValue run(string code, varmap &myenv) {
 		}
 		else if (codexec[0] == "continue") {
 			// Go back to previous (nearest) small-indent
+			int addin = ind;
 			while (execptr > 0) {
 				execptr--;
 				string s = codestream[execptr];
 				int id = getIndent(s);
+				//int addin = ind;
 				vector<string> spl = split(s, ' ', 1);
-				if (id < ind && (spl[0] == "while" || spl[0] == "for")) break;
-
+				if (id < addin) {
+					if (spl[0] == "while" || spl[0] == "for") {
+						break;
+					}
+					else {
+						addin = id;	// Mustn't in correct block. Must be its father.
+					}
+				}
 			}
 			goto after_add_exp;
 		}
@@ -1054,17 +1081,26 @@ intValue run(string code, varmap &myenv) {
 		// Find for looper
 		size_t ep = execptr;
 		int ide;	// The indent to search
+		int addin = ind;
 		while (ep > 0) {
 			ep--;
 			string s = codestream[ep];
 			ide = getIndent(s);
 			vector<string> spl = split(s, ' ', 1);
-			if (ide < ind && (spl[0] == "while" || spl[0] == "for")) break;
+			if (ide < addin ) {
+				if (spl[0] == "while" || spl[0] == "for") {
+					break;
+				}
+				else {
+					addin = ide;	// Mustn't in correct block. Must be its father.
+				}
+			}
 
 		}
 		// ep is the position
-			while (execptr != codestream.size() - 1) {
+			while (true) {
 				execptr++;
+				if (execptr >= codestream.size()) break;
 				string s = codestream[execptr];
 				int id = getIndent(s);
 				//vector<string> spl = split(s, ' ', 1);
@@ -1077,6 +1113,7 @@ intValue run(string code, varmap &myenv) {
 				
 			}
 			if (jmptable.count(execptr)) execptr = jmptable[execptr];
+			noroll = true;
 			goto after_add_exp;
 		}
 		else if (codexec[0] == "for") {
@@ -1362,8 +1399,14 @@ int main(int argc, char* argv[]) {
 
 	// Test: Input code here:
 #pragma region Compiler Test Option
+#if _DEBUG
+	string code = "", file = "test2.blue";
+	in_debug = false;
+#else
+	// DO NOT CHANGE
 	string code = "", file = "";
 	in_debug = false;
+#endif
 #pragma endregion
 	// End
 
