@@ -19,6 +19,9 @@ using namespace std;
 bool np = false, spec_ovrd = false;
 int __spec = 0;
 
+// Open if not use bmain.blue
+bool no_lib = false;
+
 // Pre declare
 class varmap;
 struct intValue;
@@ -188,7 +191,9 @@ __arg__			For a function, showing its parameters (delimitered by space).
 __init__		For a class definition, showing its initalizing function.
 	For class,	[name].[function]
 __type__		For a class object, showing its kind.
+__inherits__	For a class object, showing its inherited class (split using ','.)
 */
+const set<string> nocopy = { ".__type__", ".__inherits__", ".__arg__" };
 class varmap {
 	public:
 		
@@ -325,16 +330,33 @@ class varmap {
 			cout << "*** END OF DUMP ***" << endl;
 		}
 	
+		static void copy_inherit(string from, string dest) {
+			for (auto &i : glob_vs) {
+				if (beginWith(i.first, from + ".")) {
+					bool flag = false;
+					for (auto tests : nocopy) {
+						if (beginWith(i.first, from + tests)) flag = true;
+					}
+					if (flag) continue;
+					vector<string> spl = split(i.first, '.', 1);
+					glob_vs[dest + "." + spl[1]] = i.second;
+					glob_vs[dest + "." + from + "@" + spl[1]] = i.second;
+				}
+			}
+		}
+
 		string															this_name = "";
 		varmap															*this_source;
 			// Where 'this' points. use '.'
 		const string mymagic = "__object$\n";
 private:
 	const set<string> unserial = { "", "function", "class", "null" };
+	
 	vector<map<string, string> >										vs;
 	// Save evalable thing, like "" for string
 		static map<string, string>										glob_vs;
 };
+
 map<string, string> varmap::glob_vs;
 
 string formatting(string origin, char dinner = '\\') {
@@ -956,6 +978,22 @@ intValue run(string code, varmap &myenv) {
 				}
 				myenv[codexec2[0]] = intValue(int(myenv.count(codexec3[1]))).unformat();
 			}
+			else if (beginWith(codexec2[1], "typeof")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				parameter_check3(2, "Operator number");
+				if (codexec3[1].find(':') != string::npos) {
+					codexec3[1] = curexp(codexec3[1], myenv);
+				}
+				myenv[codexec2[0]] = intValue(myenv[codexec3[1] + ".__type__"]).unformat();
+			}
+			else if (beginWith(codexec2[1], "inheritanceof")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				parameter_check3(2, "Operator number");
+				if (codexec3[1].find(':') != string::npos) {
+					codexec3[1] = curexp(codexec3[1], myenv);
+				}
+				myenv[codexec2[0]] = intValue(myenv[codexec3[1] + ".__inherits__"]).unformat();
+			}
 #pragma region Internal Calcutions
 			else if (codexec2[1] == "__input") {
 				string t;
@@ -1387,11 +1425,17 @@ intValue preRun(string code) {
 				if (codexec[0] == "init:") {
 					fun_indent = 2;
 					cfname = curclass + "__init__";
-				}/*
-				else if (codexec[0] == "iterator:") {
-					fun_indent = 2;
-					cfname = curclass + "__iter__";
-				}*/
+				}
+				else if (codexec[0] == "inherits") {
+					string &to_inherit = codexec[1];
+					string curn = curclass.substr(0, curclass.length() - 1);
+					string old_inherits = newenv[curn + ".__inherits__"];
+					if (old_inherits == "null" || old_inherits == "") old_inherits = "";
+					else old_inherits += ",";
+					newenv.set_global(curn + ".__inherits__", old_inherits + to_inherit);
+					// Run inheritance
+					newenv.copy_inherit(to_inherit, curn);
+				}
 				break;
 			default:
 				break;
@@ -1436,8 +1480,9 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test2.blue";
+	string code = "class xlist:\n\tinherits list\n\tfunction append obj:\n\t\tprint \"Append!\"\n\t\trun this.list@append obj\nset s=new xlist\nrun s.append 9\ndump s", file = "";
 	in_debug = false;
+	no_lib = false;
 
 	if (code.length()) {
 		specialout();
@@ -1449,6 +1494,7 @@ int main(int argc, char* argv[]) {
 	// DO NOT CHANGE
 	string code = "", file = "";
 	in_debug = false;
+	no_lib = false;
 #endif
 #pragma endregion
 	// End
@@ -1465,6 +1511,9 @@ int main(int argc, char* argv[]) {
 		string opt = argv[i];
 		if (opt == "--debug") {
 			in_debug = true;
+		}
+		else if (opt == "--no-lib") {
+			no_lib = true;
 		}
 	}
 #pragma endregion
