@@ -204,6 +204,25 @@ class varmap {
 		void pop() {
 			if (vs.size()) vs.pop_back();
 		}
+		bool count(string key) {
+			if (key == "this") {
+				if (this_name.length() && this_source != NULL) return true;
+				else return false;
+			}
+			else if (beginWith(key, "this.")) {
+				vector<string> s = split(key, '.', 1);
+				return this_source->count(this_name + "." + s[1]);
+			}
+			else {
+				for (vit i = vs.rbegin(); i != vs.rend(); i++) {
+					if (i->count(key)) {
+						return true;
+					}
+				}
+				if (glob_vs.count(key)) return true;
+				return false;
+			}
+		}
 		// If return object serial, DON'T MODIFY IT !
 		string& operator[](string key) {
 #pragma region Debug Purpose
@@ -438,7 +457,9 @@ intValue getValue(string single_expr, varmap &vm) {
 			if (set_this.length()) nvm.set_this(&vm, set_this);
 			string s = vm[spl[0]];
 			if (s == "null" || s.length() == 0) {
+				curlout();
 				cout << "Warning: Call of null function " << spl[0] << endl;
+				endout();
 			}
 			__spec++;
 			auto r = run(s, nvm);
@@ -590,6 +611,11 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 
 // The interpretion of '\\', '"' will be finished here! Check the code.
 intValue calcute(string expr, varmap &vm) {
+	if (beginWith(expr, vm.mymagic)) {
+		curlout();
+		cout << "Warning: Calcute of object without serial" << endl;
+		endout();
+	}
 	stack<char> op;
 	stack<string> val;
 	string operand = "";
@@ -921,6 +947,14 @@ intValue run(string code, varmap &myenv) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
 				parameter_check3(2, "Operator number");
 				myenv[codexec2[0]] = intValue(myenv.serial(codexec3[1])).unformat();
+			}
+			else if (beginWith(codexec2[1], "ishave ")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				parameter_check3(2, "Operator number");
+				if (codexec3[1].find(':') != string::npos) {
+					codexec3[1] = curexp(codexec3[1], myenv);
+				}
+				myenv[codexec2[0]] = intValue(int(myenv.count(codexec3[1]))).unformat();
 			}
 #pragma region Internal Calcutions
 			else if (codexec2[1] == "__input") {
@@ -1402,8 +1436,15 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "print floor ((2+3)/2)", file = "test2.blue";
+	string code = "", file = "test2.blue";
 	in_debug = false;
+
+	if (code.length()) {
+		specialout();
+		cout << code;
+		cout << endl << "-------" << endl;
+		endout();
+	}
 #else
 	// DO NOT CHANGE
 	string code = "", file = "";
