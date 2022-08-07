@@ -14,6 +14,63 @@ class list:
 		set this.length=this.length+1
 		set this:pos=data
 
+class _basic_file:
+	init:
+		set this.handle=null
+		set this.filename=null
+		set this.operate=null
+		set this.vaild=0
+	function isvaild:
+		if this.vaild=0:
+			return 0
+		file vaild res=this.handle
+		return res
+	function open fn op:
+		set this.filename=fn
+		set this.operate=op
+		file open this.handle=fn,op
+		set this.vaild=1
+		set this.vaild=this.isvaild
+		return this.vaild
+	function close:
+		file close this.handle
+		set this.vaild=0
+		set this.filename=null
+		set this.operate=null
+
+class reader:
+	inherits _basic_file
+	function open fn writeable:
+		set myop="r"
+		if writeable:
+			set myop="r+"
+		run this._basic_file@open fn,myop
+	function read:
+		file read tmp=this.handle
+		return tmp
+	function read_to_end:
+		set v=1
+		set tmp=""
+		while v:
+			file read ln=this.handle
+			set tmp=ln+LF
+			file vaild v=this.handle
+		return tmp
+
+class writer:
+	inherits _basic_file
+	function open fn override readable:
+		set myop=""
+		if override:
+			set myop="w"
+		else:
+			set myop="a"
+		if readable:
+			set myop=myop+"+"
+		run this._basic_file@open fn,myop
+	function write data:
+		file write this.handle,data
+
 function isnull obj:
 	if obj=null:
 		return 1

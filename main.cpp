@@ -331,6 +331,8 @@ class varmap {
 		}
 	
 		static void copy_inherit(string from, string dest) {
+			while (from[from.length() - 1] == '\n') from.pop_back();
+			while (dest[dest.length() - 1] == '\n') dest.pop_back();
 			for (auto &i : glob_vs) {
 				if (beginWith(i.first, from + ".")) {
 					bool flag = false;
@@ -1051,6 +1053,19 @@ intValue run(string code, varmap &myenv) {
 			}
 			
 		}
+		else if (codexec[0] == "global") {
+		parameter_check(2);
+		vector<string> codexec2 = split(codexec[1], '=', 1);
+		parameter_check2(2, "set");
+		if (codexec2[0][0] == '$') {
+			codexec2[0].erase(codexec2[0].begin());
+			codexec2[0] = calcute(codexec2[0], myenv).str;
+		}
+		else if (codexec2[0].find(":") != string::npos) {
+			codexec2[0] = curexp(codexec2[0], myenv);
+		}
+		myenv.set_global(codexec2[0], calcute(codexec2[1], myenv).unformat());
+		}
 		else if (codexec[0] == "if" || codexec[0] == "elif") {
 			parameter_check(2);
 			// Certainly you have ':'
@@ -1244,7 +1259,13 @@ intValue run(string code, varmap &myenv) {
 		}
 		else if (codexec[0] == "dump") {
 		if (codexec.size() >= 2) {
-			cout << myenv.serial(codexec[1]) << endl;
+			if (codexec[1] == "__errno__") {
+				cout << errno << endl;
+			}
+			else {
+				cout << myenv.serial(codexec[1]) << endl;
+			}
+			
 		}
 		else {
 			myenv.dump();
@@ -1294,8 +1315,9 @@ intValue run(string code, varmap &myenv) {
 					myenv[codexec3[0]] = intValue(n).unformat();
 					intValue ca = calcute(codexec4[0], myenv);
 					string fn = ca.str;
-					files[n] = fopen(fn.c_str(), calcute(codexec4[1], myenv).str.c_str());
-					if (files[n] == NULL) {
+					string op = calcute(codexec4[1], myenv).str;
+					files[n] = fopen(fn.c_str(), op.c_str());
+					if (files[n] == NULL || feof(files[n])) {
 						cout << "Cannot open file " << fn << " as " << n << ", errno: " << errno << endl;
 					}
 				}
@@ -1303,7 +1325,8 @@ intValue run(string code, varmap &myenv) {
 					// file read [store]=[var]
 					codexec3 = split(codexec2[1], '=', 1);
 					int fid = calcute(codexec3[1], myenv).numeric;
-					if (files.count(fid) && !feof(files[fid])) {
+					bool rs = files.count(fid)?feof(files[fid]):0;
+					if (files.count(fid) && !rs) {
 						string res = "";
 						char c;
 						while ((!feof(files[fid])) && (c = fgetc(files[fid])) != '\n') res += c;
@@ -1323,7 +1346,8 @@ intValue run(string code, varmap &myenv) {
 						codexec3[0] = curexp(codexec3[0], myenv);
 					}
 					int fid = calcute(codexec3[1], myenv).numeric;
-					if (files.count(fid) && !feof(files[fid])) {
+					bool rs = files.count(fid) ? feof(files[fid]) : 0;
+					if (files.count(fid) && rs) {
 						myenv[codexec3[0]] = intValue(1).unformat();
 					}
 					else {
@@ -1357,6 +1381,12 @@ intValue preRun(string code) {
 	// Should prepare functions for it.
 	varmap newenv;
 	newenv.push();
+	// Preset constants
+#pragma region Preset constants
+	newenv.set_global("LF", "\"\n\"");
+	newenv.set_global("TAB", "\"\t\"");
+#pragma endregion
+
 	vector<string> codestream;
 	// Initalize libraries right here
 	FILE *f = fopen("bmain.blue", "r");
@@ -1485,7 +1515,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "set q=\"abcdef\"\nprint q#((len q)-1)", file = "";
+	string code = "set w=new reader\nrun w.open \"D:\\\\example3.txt\",0\nprint w.read_to_end\nrun w.close", file = "";
 	in_debug = false;
 	no_lib = false;
 
