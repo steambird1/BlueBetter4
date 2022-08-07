@@ -376,6 +376,11 @@ string formatting(string origin, char dinner = '\\') {
 
 intValue getValue(string single_expr, varmap &vm) {
 	if (single_expr == "null" || single_expr == "") return null;
+	// Remove any '(' in front
+	while (single_expr.length() && single_expr[0] == '(') {
+		if (single_expr[single_expr.length() - 1] == ')') single_expr.pop_back();
+		single_expr.erase(single_expr.begin());
+	}
 	if (single_expr[0] == '"' && single_expr[single_expr.length() - 1] == '"') {
 		return formatting(single_expr.substr(1, single_expr.length() - 2));
 	}
@@ -1480,7 +1485,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "class xlist:\n\tinherits list\n\tfunction append obj:\n\t\tprint \"Append!\"\n\t\trun this.list@append obj\nset s=new xlist\nrun s.append 9\ndump s", file = "";
+	string code = "set q=\"abcdef\"\nprint q#((len q)-1)", file = "";
 	in_debug = false;
 	no_lib = false;
 
