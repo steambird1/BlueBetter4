@@ -127,6 +127,14 @@ function ceil num:
 	set temp=__intg num+0.5
 	return temp
 
+function time:
+	set temp=__time
+	return temp
+
+function clock:
+	set temp=__clock
+	return temp
+
 function str num:
 	return ""+num
 

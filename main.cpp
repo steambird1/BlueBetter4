@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <set>
 #include <windows.h>
+#include <time.h>
 using namespace std;
 
 // To symbol if it's next statement, not next progress
@@ -360,6 +361,27 @@ private:
 };
 
 map<string, string> varmap::glob_vs;
+
+class inheritance_disjoint {
+public:
+	inheritance_disjoint() {
+
+	}
+	string find(string name) {
+		while (name.length() && name[name.length() - 1] == '\n') name.pop_back();
+		if (!inhs.count(name)) inhs[name] = name;
+		if (inhs[name] == name) return name;
+		return inhs[name] = find(inhs[name]);
+	}
+	inline void unions(string a, string b) {
+		inhs[find(a)] = find(b);
+	}
+	inline bool is_same(string a, string b) {
+		return find(a) == find(b);
+	}
+private:
+	map<string, string> inhs;
+} inh_map;
 
 string formatting(string origin, char dinner = '\\') {
 	string ns = "";
@@ -847,6 +869,9 @@ private:
 	map<size_t, size_t> reverted;
 };
 
+typedef intValue(*bcaller)(string,varmap&);
+map<string, bcaller> intcalls;
+
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv) {
@@ -918,7 +943,7 @@ intValue run(string code, varmap &myenv) {
 			debugcall();
 		}
 		string &cep = codestream[execptr];
-		while (cep.length() && cep[cep.length() - 1] == '\t') cep.pop_back();
+		while (cep.length() && cep[0] != '\t' && cep[cep.length() - 1] == '\t') cep.pop_back();
 		vector<string> codexec = split(cep, ' ', 1);
 		if (codexec.size() && codexec[0][0] == '\n') codexec[0].erase(codexec[0].begin()); // LF, why?
 		jmptable.revert_all(execptr);
@@ -996,12 +1021,26 @@ intValue run(string code, varmap &myenv) {
 				myenv[codexec2[0]] = intValue(myenv[codexec3[1] + ".__type__"]).unformat();
 			}
 			else if (beginWith(codexec2[1], "inheritanceof")) {
+				// set a=inheritanceof b,c (a = 0 or 1)
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
 				parameter_check3(2, "Operator number");
-				if (codexec3[1].find(':') != string::npos) {
-					codexec3[1] = curexp(codexec3[1], myenv);
+				vector<string> codexec4 = split(codexec3[1], ',', 1);
+				if (codexec4.size() < 2) {
+					myenv[codexec3[1]] = intValue(0).unformat();
 				}
-				myenv[codexec2[0]] = intValue(myenv[codexec3[1] + ".__inherits__"]).unformat();
+				else {
+					for (auto &i : codexec4) {
+						if (i.find(':') != string::npos) {
+							i = curexp(i, myenv);
+						}
+					}
+				}
+				if (inh_map.is_same(myenv[codexec4[0] + ".__type__"], myenv[codexec4[1] + ".__type__"])) {
+					myenv[codexec3[1]] = intValue(1).unformat();
+				}
+				else {
+					myenv[codexec3[1]] = intValue(0).unformat();
+				}
 			}
 #pragma region Internal Calcutions
 			else if (codexec2[1] == "__input") {
@@ -1048,6 +1087,12 @@ intValue run(string code, varmap &myenv) {
 				double dv;
 				scanf("%lf", &dv);
 				myenv[codexec2[0]] = intValue(dv).unformat();
+			}
+			else if (codexec2[1] == "__time") {
+				myenv[codexec2[0]] = intValue(time(NULL)).unformat();
+			}
+			else if (codexec2[1] == "__clock") {
+				myenv[codexec2[0]] = intValue(clock()).unformat();
 			}
 #pragma endregion
 			else {
@@ -1369,6 +1414,22 @@ intValue run(string code, varmap &myenv) {
 			debugcall();
 		}
 }
+		else if (codexec[0] == "call") {
+			// Call internal calls
+			// call [callname],[parameter]
+			parameter_check(2);
+			vector<string> codexec2 = split(codexec[1], ',', 1);
+			if (codexec2.size() <= 0 || (!intcalls.count(codexec2[0]))) {
+				cout << "Error: required system call does not exist" << endl;
+				goto add_exp;
+			}
+			if (codexec2.size() == 1) {
+				intcalls[codexec2[0]]("", myenv);
+			}
+			else if (codexec2.size() == 2) {
+				intcalls[codexec2[0]](codexec2[1], myenv);
+			}
+		}
 	add_exp: if (jmptable.count(execptr)) {
 		execptr = jmptable[execptr];
 	}
@@ -1389,8 +1450,20 @@ intValue preRun(string code) {
 #pragma region Preset constants
 	newenv.set_global("LF", "\"\n\"");
 	newenv.set_global("TAB", "\"\t\"");
+	newenv.set_global("CLOCKS_PER_SEC", intValue(CLOCKS_PER_SEC).unformat());
+	newenv.set_global("true", "1");
+	newenv.set_global("false", "0");
 #pragma endregion
-
+#pragma region Preset calls
+	intcalls["sleep"] = [](string args, varmap &env) -> intValue {
+		Sleep(DWORD(calcute(args, env).numeric));
+		return null;
+	};
+	intcalls["system"] = [](string args, varmap &env) -> intValue {
+		system(calcute(args, env).str.c_str());
+		return null;
+	};
+#pragma endregion
 	vector<string> codestream;
 	// Initalize libraries right here
 	FILE *f = fopen("bmain.blue", "r");
@@ -1474,6 +1547,7 @@ intValue preRun(string code) {
 					newenv.set_global(curn + ".__inherits__", old_inherits + to_inherit);
 					// Run inheritance
 					newenv.copy_inherit(to_inherit, curn);
+					inh_map.unions(to_inherit, curn);
 				}
 				break;
 			default:
