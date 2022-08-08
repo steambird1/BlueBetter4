@@ -127,6 +127,9 @@ function ceil num:
 	set temp=__intg num+0.5
 	return temp
 
+function str num:
+	return ""+num
+
 function substr origin begin length:
 	set newstr=""
 	for i=begin~begin+length:

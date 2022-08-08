@@ -1073,8 +1073,9 @@ intValue run(string code, varmap &myenv) {
 			if (calcute(codexec[1], myenv).boolean()) {
 				// True, go on execution, and set jumper to the end of else before any else / elif
 				size_t rptr = execptr;								// Where our code ends
-				while (getIndentRaw(codestream[++rptr]) != ind);	// Go on until aligned else / elif
-				rptr--;												// Something strange
+				while (rptr < codestream.size()-1 && getIndentRaw(codestream[++rptr]) != ind);	// Go on until aligned else / elif
+				if (rptr < codestream.size()-1) rptr--;												// Something strange
+				else rptr = codestream.size() - 1;
 				size_t eptr = execptr;
 				while (eptr < codestream.size() - 1) {
 					// End if indent equals and not 'elif' or 'else'.
@@ -1090,8 +1091,9 @@ intValue run(string code, varmap &myenv) {
 						goto end101;
 					}
 				}
-				jmptable[rptr] = codestream.size();	// Already end of code!
-				goto end102;
+			//	jmptable[rptr] = jmptable[eptr];	// Already end of code!
+			//	goto end102;
+				if (jmptable.count(eptr)) eptr = jmptable[eptr];
 			end101: jmptable[rptr] = eptr;
 			end102:;
 			}
@@ -1515,7 +1517,12 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "set w=new reader\nrun w.open \"D:\\\\example3.txt\",0\nprint w.read_to_end\nrun w.close", file = "";
+	string code = "for i=0~10:\n\
+	for j=0~10:\n\
+		if (i=3)&(j=4):\n\
+			continue\n\
+		print str j+\" \"\n\
+	print \"-\"", file = "";
 	in_debug = false;
 	no_lib = false;
 
