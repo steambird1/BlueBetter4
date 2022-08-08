@@ -917,7 +917,9 @@ intValue run(string code, varmap &myenv) {
 			spec_ovrd = false;
 			debugcall();
 		}
-		vector<string> codexec = split(codestream[execptr], ' ', 1);
+		string &cep = codestream[execptr];
+		while (cep.length() && cep[cep.length() - 1] == '\t') cep.pop_back();
+		vector<string> codexec = split(cep, ' ', 1);
 		if (codexec.size() && codexec[0][0] == '\n') codexec[0].erase(codexec[0].begin()); // LF, why?
 		jmptable.revert_all(execptr);
 		noroll = false;
@@ -1517,12 +1519,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "for i=0~10:\n\
-	for j=0~10:\n\
-		if (i=3)&(j=4):\n\
-			continue\n\
-		print str j+\" \"\n\
-	print \"-\"", file = "";
+	string code = "", file = "test1.blue";
 	in_debug = false;
 	no_lib = false;
 
