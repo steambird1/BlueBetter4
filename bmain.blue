@@ -71,6 +71,25 @@ class writer:
 	function write data:
 		file write this.handle,data
 
+function random:
+	set tmp=__random
+	return tmp
+
+function random_ranged min_r max_r:
+	return random%(max_r-min_r)+min_r;
+
+class refrence:
+	shared class
+	shared refdata
+	function put obj:
+		set r=random
+		while not isnull refrence.refdata:r:
+			set r=random
+		set refrence.refdata:r=obj
+		return r
+	function get point:
+		return refrence.refdata:point
+
 function isnull obj:
 	if obj=null:
 		return 1

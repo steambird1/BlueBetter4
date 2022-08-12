@@ -193,8 +193,22 @@ __init__		For a class definition, showing its initalizing function.
 	For class,	[name].[function]
 __type__		For a class object, showing its kind.
 __inherits__	For a class object, showing its inherited class (split using ','.)
+
+Extras:
+__must_inherit__		For a class objct, 1 if it must be inherited.
+	(A __must_inherit__ = 1 class can't have object, either.)
+__no_inherit__			For a class object, 1 if it mustn't be inherited.
+__shared__				For a class object, 1 if object can't create from the class (shared class).
+	(This feature will be inherited!)
+	For a function object, 1 if this function can't use "this" but can be called directly by class name.
+
+In environment:
+__error_handler__			(User define) processes error handler
+__is_sharing__				(User define) symbol if is calling shared thing.
+	(If __is_sharing__ = 1, call of "this" will fail.)
+
 */
-const set<string> nocopy = { ".__type__", ".__inherits__", ".__arg__" };
+const set<string> nocopy = { ".__type__", ".__inherits__", ".__arg__", ".__must_inherit__", ".__no_inherit__" };
 class varmap {
 	public:
 		
@@ -234,12 +248,30 @@ class varmap {
 #pragma region Debug Purpose
 			//cout << "Require key: " << key << endl;
 #pragma endregion
+			// Shouldn't be LF in key.
+			for (size_t i = 0; i < key.length(); i++) {
+				if (key[i] == '\n') key.erase(key.begin() + i);
+			}
 			// Find where it is
+			bool is_sharing = false;
+			if (key != "__is_sharing__" && this->operator[]("__is_sharing__") == "1") {
+				is_sharing = true;
+			}
 			if (key == "this") {
 				// Must be class
+				if (is_sharing || (this_source == NULL)) {
+					curlout();
+					cout << "Error: attempt to call 'this' in a shared function or non-class function" << endl;
+					endout();
+				}
 				return (*this_source)[this_name] = this_source->serial(this_name);
 			}
 			else if (key.substr(0, 5) == "this.") {
+				if (is_sharing || (this_source == NULL)) {
+					curlout();
+					cout << "Error: attempt to call 'this' in a shared function or non-class function" << endl;
+					endout();
+				}
 				vector<string> s = split(key, '.', 1);
 				return (*this_source)[this_name + "." + s[1]];
 			}
@@ -264,6 +296,10 @@ class varmap {
 							(*i)[key] = "null";
 							return (*i)[key];
 						}
+					}
+					if (glob_vs.count(la[0])) {
+						glob_vs[key] = "null";
+						return glob_vs[key];
 					}
 				}
 				else {
@@ -354,7 +390,7 @@ class varmap {
 		const string mymagic = "__object$\n";
 private:
 	const set<string> unserial = { "", "function", "class", "null" };
-	
+
 	vector<map<string, string> >										vs;
 	// Save evalable thing, like "" for string
 		static map<string, string>										glob_vs;
@@ -445,17 +481,25 @@ intValue getValue(string single_expr, varmap &vm) {
 		vector<string> spl = split(single_expr, ' ', 1);
 		vector<string> dotspl = split(spl[0], '.', 1);
 		string set_this = "";
+		bool set_no_this = false;
 		if (dotspl.size() > 1 && vm[dotspl[0] + ".__type__"] != "null" && vm[dotspl[0] + ".__type__"] != "function") {
-			set_this = dotspl[0];
-			spl[0] = vm[dotspl[0] + ".__type__"] + "." + dotspl[1];
+			if (vm[dotspl[0] + ".__type__"] == "class" && (vm[dotspl[0] + ".__shared__"] == "1" || vm[spl[0] + ".__shared__"] == "1")) {
+				// Do nothing!
+				set_no_this = true;
+			}
+			else {
+				set_this = dotspl[0];
+				spl[0] = vm[dotspl[0] + ".__type__"] + "." + dotspl[1];
+			}
+			
 		}
-		if (vm[spl[0] + ".__type__"] == "function") {
+		if (vm[spl[0] + ".__type__"] == "function" || set_no_this) {
 			// A function call.
 			
 			varmap nvm;
 			nvm.push();
 			nvm.set_this(vm.this_source, vm.this_name);
-			if (spl[0].find('.') != string::npos) {
+			if (spl[0].find('.') != string::npos && (!set_no_this)) {
 				vector<string> xspl = split(spl[0], '.');
 				nvm.set_this(&vm, xspl[0]);
 				xspl[0] = vm[spl[0] + ".__type__"];
@@ -506,6 +550,7 @@ intValue getValue(string single_expr, varmap &vm) {
 				}
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
+			if (set_no_this) nvm["__is_sharing__"] = "1";
 			string s = vm[spl[0]];
 			if (s == "null" || s.length() == 0) {
 				curlout();
@@ -598,7 +643,7 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 		return first.numeric / second.numeric;
 		break;
 	case '+':
-		if (first.isNumeric) {
+		if (first.isNumeric && second.isNumeric) {
 			return first.numeric + second.numeric;
 		}
 		else {
@@ -872,6 +917,12 @@ private:
 typedef intValue(*bcaller)(string,varmap&);
 map<string, bcaller> intcalls;
 
+int random() {
+	static int seed = time(NULL);
+	srand(seed);
+	return seed = rand();
+}
+
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv) {
@@ -961,6 +1012,10 @@ intValue run(string code, varmap &myenv) {
 		if (codexec[0] == "class" || codexec[0] == "function")  {
 			string s = "";
 			do {
+				if (execptr >= codestream.size() - 1) {
+					execptr = codestream.size();
+					goto after_add_exp;
+				}
 				s = codestream[++execptr];
 			} while (getIndent(s) > 0);
 			goto after_add_exp;
@@ -984,15 +1039,23 @@ intValue run(string code, varmap &myenv) {
 				codexec2[0] = curexp(codexec2[0], myenv);
 			}
 			if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "new ") {
-				vector<string> azer = split(codexec2[1], ' ');
-				varmap vm;
-				vm.push();
-				vm.set_this(&myenv, codexec2[0]);
-				myenv[codexec2[0]] = "null";
-				myenv[codexec2[0] + ".__type__"] = azer[1];
-				__spec++;
-				run(myenv[azer[1] + ".__init__"], vm);
-				__spec--;
+				vector<string> azer = split(codexec2[1], ' ');	// Classname is azer[1]
+				if (myenv[azer[1] + ".__must_inherit__"] == "1" || myenv[azer[1] + ".__shared__"] == "1") {
+					curlout();
+					cout << "Warning: class " << azer[1] << " is not allowed to create object." << endl;
+					endout();
+				}
+				else {
+					varmap vm;
+					vm.push();
+					vm.set_this(&myenv, codexec2[0]);
+					myenv[codexec2[0]] = "null";
+					myenv[codexec2[0] + ".__type__"] = azer[1];
+					__spec++;
+					run(myenv[azer[1] + ".__init__"], vm);
+					__spec--;
+				}
+				
 			}
 			else if (beginWith(codexec2[1], "object ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
@@ -1035,11 +1098,16 @@ intValue run(string code, varmap &myenv) {
 						}
 					}
 				}
-				if (inh_map.is_same(myenv[codexec4[0] + ".__type__"], myenv[codexec4[1] + ".__type__"])) {
-					myenv[codexec3[1]] = intValue(1).unformat();
+				if (myenv[codexec4[0] + ".__type__"] == "null" || myenv[codexec4[0] + ".__type__"] == "class") {
+					myenv[codexec2[0]] = intValue(inh_map.is_same(codexec4[0], codexec4[1])).unformat();
 				}
 				else {
-					myenv[codexec3[1]] = intValue(0).unformat();
+					if (inh_map.is_same(myenv[codexec4[0] + ".__type__"], myenv[codexec4[1] + ".__type__"])) {
+						myenv[codexec2[0]] = intValue(1).unformat();
+					}
+					else {
+						myenv[codexec2[0]] = intValue(0).unformat();
+					}
 				}
 			}
 #pragma region Internal Calcutions
@@ -1093,6 +1161,9 @@ intValue run(string code, varmap &myenv) {
 			}
 			else if (codexec2[1] == "__clock") {
 				myenv[codexec2[0]] = intValue(clock()).unformat();
+			}
+			else if (codexec2[1] == "__random") {
+				myenv[codexec2[0]] = intValue(random()).unformat();
 			}
 #pragma endregion
 			else {
@@ -1419,16 +1490,18 @@ intValue run(string code, varmap &myenv) {
 			// call [callname],[parameter]
 			parameter_check(2);
 			vector<string> codexec2 = split(codexec[1], ',', 1);
+			intValue result;
 			if (codexec2.size() <= 0 || (!intcalls.count(codexec2[0]))) {
 				cout << "Error: required system call does not exist" << endl;
 				goto add_exp;
 			}
 			if (codexec2.size() == 1) {
-				intcalls[codexec2[0]]("", myenv);
+				result = intcalls[codexec2[0]]("", myenv);
 			}
 			else if (codexec2.size() == 2) {
-				intcalls[codexec2[0]](codexec2[1], myenv);
+				result = intcalls[codexec2[0]](codexec2[1], myenv);
 			}
+			myenv.set_global("__call_return", result.unformat());
 		}
 	add_exp: if (jmptable.count(execptr)) {
 		execptr = jmptable[execptr];
@@ -1519,6 +1592,7 @@ intValue preRun(string code) {
 					if (codexec[1][codexec[1].length() - 1] == '\n') codexec[1].pop_back();
 					codexec[1].pop_back();	// ':'
 					newenv.set_global(codexec[1] + ".__type__", "class");
+					newenv.set_global(codexec[1]);
 					curclass = codexec[1] + ".";
 				}
 				else if (codexec[0] == "import") {
@@ -1540,14 +1614,41 @@ intValue preRun(string code) {
 				}
 				else if (codexec[0] == "inherits") {
 					string &to_inherit = codexec[1];
-					string curn = curclass.substr(0, curclass.length() - 1);
-					string old_inherits = newenv[curn + ".__inherits__"];
-					if (old_inherits == "null" || old_inherits == "") old_inherits = "";
-					else old_inherits += ",";
-					newenv.set_global(curn + ".__inherits__", old_inherits + to_inherit);
-					// Run inheritance
-					newenv.copy_inherit(to_inherit, curn);
-					inh_map.unions(to_inherit, curn);
+					if (newenv[to_inherit + ".__no_inherit__"] == "1") {
+						curlout();
+						cout << "Warning: No inheriting class " << to_inherit << endl;
+						endout();
+					}
+					else {
+						string curn = curclass.substr(0, curclass.length() - 1);
+						string old_inherits = newenv[curn + ".__inherits__"];
+						if (old_inherits == "null" || old_inherits == "") old_inherits = "";
+						else old_inherits += ",";
+						newenv.set_global(curn + ".__inherits__", old_inherits + to_inherit);
+						// Run inheritance
+						newenv.copy_inherit(to_inherit, curn);
+						inh_map.unions(to_inherit, curn);
+					}
+				}
+				else if (codexec[0] == "shared") {
+					string &to_share = codexec[1];
+					while (to_share.length() && to_share[to_share.length() - 1] == '\n') to_share.pop_back();
+					if (to_share == "class") {
+						newenv.set_global(curclass + "__shared__", "1");
+					}
+					else {
+						string to_set = curclass + to_share;
+						if (!newenv.count(to_set)) {
+							newenv.set_global(to_set);
+						}
+						newenv.set_global(to_set + ".__shared__", "1");
+					}
+				}
+				else if (codexec[0] == "must_inherit") {
+					newenv.set_global(curclass + "__must_inherit__", "1");
+				}
+				else if (codexec[0] == "no_inherit") {
+					newenv.set_global(curclass + "__no_inherit__", "1");
 				}
 				break;
 			default:
