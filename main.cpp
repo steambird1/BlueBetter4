@@ -544,7 +544,12 @@ intValue getValue(string single_expr, varmap &vm) {
 				else {
 					arg.push_back(spl[1]);
 				}
-				if (arg.size() < argname.size()) return null;
+				if (arg.size() != argname.size()) {
+					curlout();
+					cout << "Warning: Parameter dismatches or function does not exist while calling function " << spl[0] << endl;
+					endout();
+					return null;
+				}
 				for (size_t i = 0; i < arg.size(); i++) {
 					nvm[argname[i]] = (calcute(arg[i], vm)).unformat();
 				}
@@ -1459,14 +1464,14 @@ intValue run(string code, varmap &myenv) {
 						cout << "Incorrect file: " << fid << endl;
 					}
 				}
-				else if (op == "vaild") {
+				else if (op == "valid") {
 					// file vaild [store]=[var]
 					codexec3 = split(codexec2[1], '=', 1);
 					if (codexec3[0].find(":") != string::npos) {
 						codexec3[0] = curexp(codexec3[0], myenv);
 					}
 					int fid = calcute(codexec3[1], myenv).numeric;
-					bool rs = files.count(fid) ? feof(files[fid]) : 0;
+					bool rs = files.count(fid) ? (!feof(files[fid])) : 0;
 					if (files.count(fid) && rs) {
 						myenv[codexec3[0]] = intValue(1).unformat();
 					}

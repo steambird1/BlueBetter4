@@ -19,22 +19,22 @@ class _basic_file:
 		set this.handle=null
 		set this.filename=null
 		set this.operate=null
-		set this.vaild=0
-	function isvaild:
-		if this.vaild=0:
+		set this.valid=0
+	function isvalid:
+		if this.valid=0:
 			return 0
-		file vaild res=this.handle
+		file valid res=this.handle
 		return res
 	function open fn op:
 		set this.filename=fn
 		set this.operate=op
 		file open this.handle=fn,op
-		set this.vaild=1
-		set this.vaild=this.isvaild
-		return this.vaild
+		set this.valid=1
+		set this.valid=this.isvalid
+		return this.valid
 	function close:
 		file close this.handle
-		set this.vaild=0
+		set this.valid=0
 		set this.filename=null
 		set this.operate=null
 
@@ -53,8 +53,8 @@ class reader:
 		set tmp=""
 		while v:
 			file read ln=this.handle
-			set tmp=ln+LF
-			file vaild v=this.handle
+			set tmp=tmp+ln+LF
+			file valid v=this.handle
 		return tmp
 
 class writer:
@@ -78,17 +78,21 @@ function random:
 function random_ranged min_r max_r:
 	return random%(max_r-min_r)+min_r;
 
-class refrence:
+class reference:
 	shared class
 	shared refdata
 	function put obj:
 		set r=random
-		while not isnull refrence.refdata:r:
+		while not isnull reference.refdata:r:
 			set r=random
-		set refrence.refdata:r=obj
+		set reference.refdata:r=obj
 		return r
 	function get point:
-		return refrence.refdata:point
+		return reference.refdata:point
+	function sets point obj:
+		set reference.refdata:point=obj
+	function valid point:
+		return not isnull refrence.reference.refdata:point
 
 function isnull obj:
 	if obj=null:
