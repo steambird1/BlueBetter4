@@ -957,10 +957,19 @@ int random() {
 	return seed = rand();
 }
 
+inline bool haveContent(string s, char filter = '\t') {
+	for (auto &i : s) if (i != filter) return true;
+	return false;
+}
+
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv) {
 	vector<string> codestream = split(code);
+	// Process codestream before run
+	for (auto &cep : codestream) {
+		while (cep.length() && haveContent(cep) && cep[cep.length() - 1] == '\t') cep.pop_back();
+	}
 	size_t execptr = 0;
 	jumpertable jmptable;
 	int prevind = 0;
@@ -1028,12 +1037,13 @@ intValue run(string code, varmap &myenv) {
 			debugcall();
 		}
 		string &cep = codestream[execptr];
-		while (cep.length() && cep[0] != '\t' && cep[cep.length() - 1] == '\t') cep.pop_back();
+		//while (cep.length() && cep[0] != '\t' && cep[cep.length() - 1] == '\t') cep.pop_back();	// Processed
 		vector<string> codexec = split(cep, ' ', 1);
 		if (codexec.size() && codexec[0][0] == '\n') codexec[0].erase(codexec[0].begin()); // LF, why?
+		int ind = getIndent(codexec[0]);
+		if (codexec.size() <= 0 || codexec[0][0] == '#') goto add_exp;	// Comment
 		jmptable.revert_all(execptr);
 		noroll = false;
-		int ind = getIndent(codexec[0]);
 		while (prevind < ind) {
 			myenv.push();
 			prevind++;
@@ -1744,7 +1754,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test1.blue";
+	string code = "", file = "test3.blue";
 	in_debug = false;
 	no_lib = false;
 
