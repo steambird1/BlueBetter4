@@ -94,6 +94,17 @@ class reference:
 	function valid point:
 		return not isnull refrence.reference.refdata:point
 
+function typeof obj:
+	set o=object obj
+	set temp=__typeof o
+	return temp
+
+function inheritanceof first second:
+	set fo=object first
+	set so=object second
+	set temp=__inheritanceof fo,so
+	return temp
+
 function isnull obj:
 	if obj=null:
 		return 1

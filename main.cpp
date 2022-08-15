@@ -326,7 +326,7 @@ class varmap {
 					}
 				}
 			}
-			return tmp;
+			return intValue(tmp).unformat();	// Simply make it setable
 		}
 		void deserial(string name, string serial) {
 			if (!beginWith(serial, mymagic)) {
@@ -340,6 +340,35 @@ class varmap {
 				(*this)[name + itemspl[0]] = itemspl[1];
 			}
 			(*this)[name] = "null";
+		}
+		void tree_clean(string name) {
+			if (name == "this") {
+				this->this_source = NULL;
+				this->this_name = "";
+			}
+			else if (beginWith(name, "this.")) {
+				vector<string> spl = split(name, '.', 1);
+				if (spl.size() < 2) return;
+				this->this_source->tree_clean(this->this_name + "." + spl[1]);
+			}
+			else {
+				// Clean in my tree.
+				for (auto i = vs.rbegin(); i != vs.rend(); i++) {
+					if (i->count(name)) {
+						(*i)[name] = "null";
+						vector<string> to_delete;
+						for (auto &j : (*i)) {
+							if (beginWith(j.first, name + ".")) {
+								// Delete!
+								to_delete.push_back(j.first);
+							}
+						}
+						for (auto &j : to_delete) {
+							i->erase(j);
+						}
+					}
+				}
+			}
 		}
 		void set_global(string key, string value = "null") {
 			glob_vs[key] = value;
@@ -1070,7 +1099,7 @@ intValue run(string code, varmap &myenv) {
 			else if (beginWith(codexec2[1], "serial ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
 				parameter_check3(2, "Operator number");
-				myenv[codexec2[0]] = intValue(myenv.serial(codexec3[1])).unformat();
+				myenv[codexec2[0]] = myenv.serial(codexec3[1]);
 			}
 			else if (beginWith(codexec2[1], "ishave ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
@@ -1080,40 +1109,8 @@ intValue run(string code, varmap &myenv) {
 				}
 				myenv[codexec2[0]] = intValue(int(myenv.count(codexec3[1]))).unformat();
 			}
-			else if (beginWith(codexec2[1], "typeof")) {
-				vector<string> codexec3 = split(codexec2[1], ' ', 1);
-				parameter_check3(2, "Operator number");
-				if (codexec3[1].find(':') != string::npos) {
-					codexec3[1] = curexp(codexec3[1], myenv);
-				}
-				myenv[codexec2[0]] = intValue(myenv[codexec3[1] + ".__type__"]).unformat();
-			}
-			else if (beginWith(codexec2[1], "inheritanceof")) {
-				// set a=inheritanceof b,c (a = 0 or 1)
-				vector<string> codexec3 = split(codexec2[1], ' ', 1);
-				parameter_check3(2, "Operator number");
-				vector<string> codexec4 = split(codexec3[1], ',', 1);
-				if (codexec4.size() < 2) {
-					myenv[codexec3[1]] = intValue(0).unformat();
-				}
-				else {
-					for (auto &i : codexec4) {
-						if (i.find(':') != string::npos) {
-							i = curexp(i, myenv);
-						}
-					}
-				}
-				if (myenv[codexec4[0] + ".__type__"] == "null" || myenv[codexec4[0] + ".__type__"] == "class") {
-					myenv[codexec2[0]] = intValue(inh_map.is_same(codexec4[0], codexec4[1])).unformat();
-				}
-				else {
-					if (inh_map.is_same(myenv[codexec4[0] + ".__type__"], myenv[codexec4[1] + ".__type__"])) {
-						myenv[codexec2[0]] = intValue(1).unformat();
-					}
-					else {
-						myenv[codexec2[0]] = intValue(0).unformat();
-					}
-				}
+			else if (codexec2[1] == "clear") {
+				myenv.tree_clean(codexec2[0]);
 			}
 #pragma region Internal Calcutions
 			else if (codexec2[1] == "__input") {
@@ -1170,6 +1167,41 @@ intValue run(string code, varmap &myenv) {
 			else if (codexec2[1] == "__random") {
 				myenv[codexec2[0]] = intValue(random()).unformat();
 			}
+			else if (beginWith(codexec2[1], "__typeof")) {
+			vector<string> codexec3 = split(codexec2[1], ' ', 1);
+			parameter_check3(2, "Operator number");
+			if (codexec3[1].find(':') != string::npos) {
+				codexec3[1] = curexp(codexec3[1], myenv);
+			}
+			myenv[codexec2[0]] = intValue(myenv[codexec3[1] + ".__type__"]).unformat();
+			}
+			else if (beginWith(codexec2[1], "__inheritanceof")) {
+				// set a=inheritanceof b,c (a = 0 or 1)
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				parameter_check3(2, "Operator number");
+				vector<string> codexec4 = split(codexec3[1], ',', 1);
+				if (codexec4.size() < 2) {
+					myenv[codexec3[1]] = intValue(0).unformat();
+				}
+				else {
+					for (auto &i : codexec4) {
+						if (i.find(':') != string::npos) {
+							i = curexp(i, myenv);
+						}
+					}
+				}
+				if (myenv[codexec4[0] + ".__type__"] == "null" || myenv[codexec4[0] + ".__type__"] == "class") {
+					myenv[codexec2[0]] = intValue(inh_map.is_same(codexec4[0], codexec4[1])).unformat();
+				}
+				else {
+					if (inh_map.is_same(myenv[codexec4[0] + ".__type__"], myenv[codexec4[1] + ".__type__"])) {
+						myenv[codexec2[0]] = intValue(1).unformat();
+					}
+					else {
+						myenv[codexec2[0]] = intValue(0).unformat();
+					}
+				}
+			}
 #pragma endregion
 			else {
 				myenv[codexec2[0]] = calcute(codexec2[1], myenv).unformat();
@@ -1197,14 +1229,15 @@ intValue run(string code, varmap &myenv) {
 				// True, go on execution, and set jumper to the end of else before any else / elif
 				size_t rptr = execptr;								// Where our code ends
 				while (rptr < codestream.size()-1 && getIndentRaw(codestream[++rptr]) != ind);	// Go on until aligned else / elif
-				if (rptr < codestream.size()-1) rptr--;												// Something strange
-				else rptr = codestream.size() - 1;
+				if (getIndentRaw(codestream[rptr]) != ind) rptr = codestream.size() - 1; //rptr--;												// Something strange
+				else rptr--;
 				size_t eptr = execptr;
+				int r;
 				while (eptr < codestream.size() - 1) {
 					// End if indent equals and not 'elif' or 'else'.
 					//if () break;
 					string s = codestream[++eptr];
-					int r = getIndent(s);
+					r = getIndent(s);
 					vector<string> sp = split(s, ' ', 1);
 					if (!sp.size()) continue;
 					if (r == ind && sp[0] != "elif" && sp[0] != "else:") goto end101;
@@ -1214,9 +1247,11 @@ intValue run(string code, varmap &myenv) {
 						goto end101;
 					}
 				}
+				if (r > ind) eptr++;	// Last line still not acceptable
 			//	jmptable[rptr] = jmptable[eptr];	// Already end of code!
 			//	goto end102;
 				if (jmptable.count(eptr)) eptr = jmptable[eptr];
+				else if (jmptable.count(eptr - 1)) eptr = jmptable[eptr - 1];	//?
 			end101: jmptable[rptr] = eptr;
 			end102:;
 			}
@@ -1231,7 +1266,12 @@ intValue run(string code, varmap &myenv) {
 					if (!sp.size()) continue;
 					if (r <= ind) break;
 				}
-				execptr = eptr;
+				size_t ptr_to_check = eptr;
+				//if (getIndentRaw(codestream[ptr_to_check]) < ind) ptr_to_check--;	// If here's EOL
+				string ep = codestream[ptr_to_check];
+				getIndent(ep);
+				if (jmptable.count(ptr_to_check) && getIndentRaw(codestream[ptr_to_check]) < ind &&(!beginWith(ep, "elif ")) && (!beginWith(ep, "else:"))) execptr = jmptable[ptr_to_check];
+				else execptr = ptr_to_check;	// Should be?
 				goto after_add_exp;
 			}
 		}
@@ -1247,6 +1287,7 @@ intValue run(string code, varmap &myenv) {
 			if (codexec[1].length()) codexec[1].pop_back();
 			if (calcute(codexec[1], myenv).boolean()) {
 				// True, go on execution, and set jumper to here at the end.
+				// must have a acceptable line.
 				size_t eptr = execptr;
 				while (eptr != codestream.size() - 1) {
 					// End if indent equals.
@@ -1261,8 +1302,9 @@ intValue run(string code, varmap &myenv) {
 			}
 			else {
 				noroll = true; //  End of statements' life
+				int r;
 				while (execptr != codestream.size()-1 ) {
-					int r = getIndentRaw(codestream[++execptr]);
+					r = getIndentRaw(codestream[++execptr]);
 					if (r == ind) goto after_add_exp; //break;
 					if (r < ind) { // Multi-jump at once: Too far
 						// Direct jumps
@@ -1270,6 +1312,7 @@ intValue run(string code, varmap &myenv) {
 						goto after_add_exp;
 					}
 				}
+				if (r > ind) execptr++;		// Last line is not acceptable
 				if (jmptable.count(execptr)) execptr = jmptable[execptr]; // Must not look for execution
 
 				goto after_add_exp;
@@ -1356,8 +1399,9 @@ intValue run(string code, varmap &myenv) {
 			if (calcute(myenv[codexec2[0]], myenv).numeric == calcute(rangeobj[1], myenv).numeric) {
 				// Jump where end-of-loop
 				noroll = true; //  End of statements' life
+				int r;
 				while (execptr != codestream.size() - 1) {
-					int r = getIndentRaw(codestream[++execptr]);
+					r = getIndentRaw(codestream[++execptr]);
 					if (r == ind) goto after_add_exp; //break;
 					if (r < ind) { // Multi-jump at once: Too far
 						// Direct jumps
@@ -1365,6 +1409,7 @@ intValue run(string code, varmap &myenv) {
 						goto after_add_exp;
 					}
 				}
+				if (r <= ind) execptr--;			// Last line is not acceptable
 				if (jmptable.count(execptr)) execptr = jmptable[execptr]; // Must not look for execution
 				goto after_add_exp;
 			}
