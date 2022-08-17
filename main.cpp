@@ -962,6 +962,14 @@ inline bool haveContent(string s, char filter = '\t') {
 	return false;
 }
 
+size_t getLength(int fid) {
+	size_t cur = ftell(files[fid]);
+	fseek(files[fid], 0, SEEK_END);
+	size_t res = ftell(files[fid]);
+	fseek(files[fid], cur, SEEK_SET);
+	return res;
+}
+
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv) {
@@ -1053,7 +1061,7 @@ intValue run(string code, varmap &myenv) {
 			prevind--;
 		}
 		// To be filled ...
-		if (codexec[0] == "class" || codexec[0] == "function")  {
+		if (codexec[0] == "class" || codexec[0] == "function" || codexec[0] == "error_handler")  {
 			string s = "";
 			do {
 				if (execptr >= codestream.size() - 1) {
@@ -1534,6 +1542,75 @@ intValue run(string code, varmap &myenv) {
 						myenv[codexec3[0]] = intValue(0).unformat();
 					}
 				}
+				else if (op == "len") {
+					// file len [store]=[var]
+					codexec3 = split(codexec2[1], '=', 1);
+					int fid = calcute(codexec3[1], myenv).numeric;
+					bool rs = files.count(fid) ? feof(files[fid]) : 0;
+					if (files.count(fid) && !rs) {
+						myenv[codexec3[0]] = intValue(getLength(fid)).unformat();
+					}
+					else {
+						cout << "Incorrect file: " << fid << endl;
+					}
+				}
+				else if (op == "binary_read") {
+					// file binary_read [store list]=[var]
+					codexec3 = split(codexec2[1], '=', 1);
+					int fid = calcute(codexec3[1], myenv).numeric;
+					bool rs = files.count(fid) ? feof(files[fid]) : 0;
+					if (files.count(fid) && !rs) {
+						size_t len = getLength(fid);
+						char *buf = new char[len + 2];
+						fread(buf, sizeof(char), len, files[fid]);
+						if (codexec3[0].find(":") != string::npos) {
+							codexec3[0] = curexp(codexec3[0], myenv);
+						}
+						string &cn = codexec3[0];
+						myenv[cn + ".length"] = len;
+						myenv[cn + ".__type__"] = "list";
+						for (size_t i = 0; i < len; i++) {
+							myenv[cn + "." + to_string(i)] = int(buf[i]);
+						}
+						delete[] buf;
+						//... For list
+					}
+					else {
+						cout << "Incorrect file: " << fid << endl;
+					}
+				}
+				else if (op == "binary_write") {
+					// file binary_write [fid],[list data]
+					codexec3 = split(codexec2[1], '=', 1);
+					vector<string> codexec4 = split(codexec3[1], ',', 1);
+					int fid = calcute(codexec4[0], myenv).numeric;
+					bool rs = files.count(fid) ? feof(files[fid]) : 0;
+					if (files.count(fid) && !rs) {
+						if (codexec4[1].find(":") != string::npos) {
+							codexec4[1] = curexp(codexec4[1], myenv);
+						}
+						string &cn = codexec4[1];
+						if (inh_map.is_same(myenv[cn + ".__type__"], "list")) {
+							long64 clen = calcute(myenv[cn + ".length"], myenv).numeric;
+							char *buf = new char[clen + 2];
+							for (size_t i = 0; i < clen; i++) {
+								cn[i] = char(calcute(myenv[cn + "." + to_string(i)], myenv).numeric);
+							}
+							fwrite(buf, sizeof(char), clen, files[fid]);
+							delete[] buf;
+						}
+						else {
+							curlout();
+							cout << "Error: only list type supported while binary output" << endl;
+							endout();
+						}
+					}
+					else {
+						curlout();
+						cout << "Incorrect file: " << fid << endl;
+						endout();
+					}
+				}
 			}
 			
 		}
@@ -1586,6 +1663,8 @@ intValue preRun(string code) {
 	newenv.set_global("CLOCKS_PER_SEC", intValue(CLOCKS_PER_SEC).unformat());
 	newenv.set_global("true", "1");
 	newenv.set_global("false", "0");
+	newenv.set_global("err");			// Error information
+	newenv.set_global("__error_handler__", "print err");	// Preset error handler
 #pragma endregion
 #pragma region Preset calls
 	intcalls["sleep"] = [](string args, varmap &env) -> intValue {
@@ -1665,6 +1744,10 @@ intValue preRun(string code) {
 							codestream.push_back(buf1);
 						}
 					}
+				}
+				else if (codexec[0] == "error_handler:") {
+					fun_indent = 1;
+					cfname = "__error_handler__";
 				}
 				break;
 			case 1:
@@ -1754,7 +1837,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test3.blue";
+	string code = "error_handler:\n\tprint \"ERR\"\nrun input", file = "";
 	in_debug = false;
 	no_lib = false;
 
