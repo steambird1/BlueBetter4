@@ -71,6 +71,29 @@ class writer:
 	function write data:
 		file write this.handle,data
 
+class binary_reader:
+	inherits reader
+	function open fn:
+		run this._basic_file@open fn,"rb"
+	function read_binary_to_end:
+		debugger
+		file binary_read tmp=this.handle
+		return tmp
+
+class binary_writer:
+	inherits writer
+	function open fn override:
+		set myop=""
+		if override:
+			set myop="w"
+		else:
+			set myop="a"
+		set myop=myop+"b"
+		run this._basic_file@open fn,myop
+	function write_binary blist:
+		set bobj=object blist
+		file binary_write this.handle,bobj
+
 function random:
 	set tmp=__random
 	return tmp

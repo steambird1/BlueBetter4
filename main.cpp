@@ -284,7 +284,6 @@ class varmap {
 						else {
 							return ((*i))[key] = serial(key);
 						}
-						
 					}
 				}
 				if (glob_vs.count(key)) return glob_vs[key];
@@ -970,6 +969,19 @@ size_t getLength(int fid) {
 	return res;
 }
 
+void generateClass(string variable, string classname, varmap &myenv, bool run_init = true) {
+	myenv[variable] = "null";
+	myenv[variable + ".__type__"] = classname;
+	if (run_init) {
+		varmap vm;
+		vm.push();
+		vm.set_this(&myenv, variable);
+		__spec++;
+		run(myenv[classname + ".__init__"], vm);
+		__spec--;
+	}
+}
+
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv) {
@@ -1087,7 +1099,8 @@ intValue run(string code, varmap &myenv) {
 			if (codexec2[0][0]=='$') {
 				codexec2[0].erase(codexec2[0].begin());
 				codexec2[0] = calcute(codexec2[0], myenv).str;
-			} else if (codexec2[0].find(":") != string::npos) {
+			}
+			else if (codexec2[0].find(":") != string::npos) {
 				codexec2[0] = curexp(codexec2[0], myenv);
 			}
 			if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "new ") {
@@ -1098,14 +1111,7 @@ intValue run(string code, varmap &myenv) {
 					endout();
 				}
 				else {
-					varmap vm;
-					vm.push();
-					vm.set_this(&myenv, codexec2[0]);
-					myenv[codexec2[0]] = "null";
-					myenv[codexec2[0] + ".__type__"] = azer[1];
-					__spec++;
-					run(myenv[azer[1] + ".__init__"], vm);
-					__spec--;
+					generateClass(codexec2[0], azer[1], myenv);
 				}
 				
 			}
@@ -1475,7 +1481,9 @@ intValue run(string code, varmap &myenv) {
 					files.erase(f);
 				}
 				else {
+					curlout();
 					cout << "Incorrect file: " << f << endl;
+					endout();
 				}
 				
 			}
@@ -1493,7 +1501,7 @@ intValue run(string code, varmap &myenv) {
 			else {
 				if (op == "open") {
 					// file open [var]=[filename],[mode]
-					codexec3 = split(codexec2[1], '=', 1);
+ 					codexec3 = split(codexec2[1], '=', 1);
 					vector<string> codexec4 = split(codexec3[1], ',', 1);
 					int n = 0;
 					while (files.count(n++));
@@ -1567,10 +1575,11 @@ intValue run(string code, varmap &myenv) {
 							codexec3[0] = curexp(codexec3[0], myenv);
 						}
 						string &cn = codexec3[0];
-						myenv[cn + ".length"] = len;
-						myenv[cn + ".__type__"] = "list";
+						//myenv[cn + ".__type__"] = "list";
+						generateClass(cn, "list", myenv, false);	// Accerlation
+						myenv[cn + ".length"] = intValue(len).unformat();
 						for (size_t i = 0; i < len; i++) {
-							myenv[cn + "." + to_string(i)] = int(buf[i]);
+							myenv[cn + "." + to_string(i)] = intValue(int(buf[i])).unformat();
 						}
 						delete[] buf;
 						//... For list
@@ -1581,8 +1590,8 @@ intValue run(string code, varmap &myenv) {
 				}
 				else if (op == "binary_write") {
 					// file binary_write [fid],[list data]
-					codexec3 = split(codexec2[1], '=', 1);
-					vector<string> codexec4 = split(codexec3[1], ',', 1);
+					//codexec3 = split(codexec2[1], '=', 1);
+					vector<string> codexec4 = split(codexec2[1], ',', 1);
 					int fid = calcute(codexec4[0], myenv).numeric;
 					bool rs = files.count(fid) ? feof(files[fid]) : 0;
 					if (files.count(fid) && !rs) {
@@ -1594,7 +1603,7 @@ intValue run(string code, varmap &myenv) {
 							long64 clen = calcute(myenv[cn + ".length"], myenv).numeric;
 							char *buf = new char[clen + 2];
 							for (size_t i = 0; i < clen; i++) {
-								cn[i] = char(calcute(myenv[cn + "." + to_string(i)], myenv).numeric);
+								buf[i] = char((calcute(myenv[cn + "." + to_string(i)], myenv).numeric));
 							}
 							fwrite(buf, sizeof(char), clen, files[fid]);
 							delete[] buf;
@@ -1837,8 +1846,8 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "error_handler:\n\tprint \"ERR\"\nrun input", file = "";
-	in_debug = false;
+	string code = "", file = "test2.blue";
+	in_debug = true;
 	no_lib = false;
 
 	if (code.length()) {
