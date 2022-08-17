@@ -1,3 +1,7 @@
+class exception:
+	init:
+		# Do nothing, reserved class
+
 class list:
 	init:
 		set this.length=0

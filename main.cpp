@@ -26,8 +26,9 @@ bool no_lib = false;
 // Pre declare
 class varmap;
 struct intValue;
-intValue run(string code, varmap &myenv);
+intValue run(string code, varmap &myenv, string fname);
 intValue calcute(string expr, varmap &vm);
+void raiseError(intValue raiseValue, varmap &myenv, string source_function = "Unknown source", size_t source_line = 0, double error_id = 0, string error_desc = "");
 
 HANDLE stdouth;
 void setColor(DWORD color) {
@@ -114,8 +115,6 @@ string unformatting(string origin) {
 		if (origin[i] == '"' || origin[i] == '\\') {
 			ns += "\\";
 			ns += origin[i];
-			// for debug propose
-			//cout << ns << endl;
 		}
 		else {
 			ns += origin[i];
@@ -183,6 +182,10 @@ struct intValue {
 	}
 
 } null;
+
+#define raise_ce(description) raiseError(null, myenv, fname, execptr, __LINE__, description)
+#define raise_varmap_ce(description) raiseError(null, *this, "Runtime", 0, __LINE__, description)
+#define raise_gv_ce(description) raiseError(null, vm, "Runtime", 0, __LINE__, description);
 
 // All the varmaps show one global variable space.
 /*
@@ -260,16 +263,14 @@ class varmap {
 			if (key == "this") {
 				// Must be class
 				if (is_sharing || (this_source == NULL)) {
-					curlout();
-					cout << "Error: attempt to call 'this' in a shared function or non-class function" << endl;
-					endout();
+					raise_varmap_ce("Error: attempt to call 'this' in a shared function or non-class function");
 				}
 				return (*this_source)[this_name] = this_source->serial(this_name);
 			}
 			else if (key.substr(0, 5) == "this.") {
 				if (is_sharing || (this_source == NULL)) {
 					curlout();
-					cout << "Error: attempt to call 'this' in a shared function or non-class function" << endl;
+					raise_varmap_ce("Error: attempt to call 'this' in a shared function or non-class function");
 					endout();
 				}
 				vector<string> s = split(key, '.', 1);
@@ -369,7 +370,7 @@ class varmap {
 				}
 			}
 		}
-		void set_global(string key, string value = "null") {
+		static void set_global(string key, string value = "null") {
 			glob_vs[key] = value;
 		}
 		void declare(string key) {
@@ -425,6 +426,28 @@ private:
 };
 
 map<string, string> varmap::glob_vs;
+
+void raiseError(intValue raiseValue, varmap &myenv, string source_function, size_t source_line, double error_id, string error_desc) {
+	if (source_function == "__error_handler__") {
+		curlout();
+		cout << "During processing error, another error occured:" << endl;
+		cout << "Line: " << source_line << endl;
+		cout << "Error #: " << error_id << endl;
+		cout << "Description: " << error_desc << endl;
+		cout << "System can't process error in error handler. System will quit." << endl;
+		exit(1);
+		endout();
+		return;
+	}
+	myenv.set_global("err.value", raiseValue.unformat());
+	myenv.set_global("err.source", intValue(source_function).unformat());
+	myenv.set_global("err.line", intValue(source_line).unformat());
+	myenv.set_global("err.id", intValue(error_id).unformat());
+	myenv.set_global("err.description", intValue(error_desc).unformat());
+	varmap emer_var;
+	emer_var.push();
+	run(myenv["__error_handler__"], emer_var, "__error_handler__");
+}
 
 class inheritance_disjoint {
 public:
@@ -573,9 +596,8 @@ intValue getValue(string single_expr, varmap &vm) {
 					arg.push_back(spl[1]);
 				}
 				if (arg.size() != argname.size()) {
-					curlout();
-					cout << "Warning: Parameter dismatches or function does not exist while calling function " << spl[0] << endl;
-					endout();
+					raise_gv_ce(string("Warning: Parameter dismatches or function does not exist while calling function ") + spl[0]);
+
 					return null;
 				}
 				for (size_t i = 0; i < arg.size(); i++) {
@@ -586,12 +608,10 @@ intValue getValue(string single_expr, varmap &vm) {
 			if (set_no_this) nvm["__is_sharing__"] = "1";
 			string s = vm[spl[0]];
 			if (s == "null" || s.length() == 0) {
-				curlout();
-				cout << "Warning: Call of null function " << spl[0] << endl;
-				endout();
+				raise_gv_ce(string("Warning: Call of null function ") + spl[0]);
 			}
 			__spec++;
-			auto r = run(s, nvm);
+			auto r = run(s, nvm, spl[0]);
 			__spec--;
 			return r;
 		}
@@ -741,9 +761,7 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 // The interpretion of '\\', '"' will be finished here! Check the code.
 intValue calcute(string expr, varmap &vm) {
 	if (beginWith(expr, vm.mymagic)) {
-		curlout();
-		cout << "Warning: Calcute of object without serial" << endl;
-		endout();
+		raise_gv_ce("Warning: Calcute of object without serial");
 	}
 	stack<char> op;
 	stack<string> val;
@@ -871,9 +889,9 @@ intValue calcute(string expr, varmap &vm) {
 	return getValue(val.top(), vm);
 }
 
-#define parameter_check(req) do {if (codexec.size() < req) {cout << "Error: required parameter not given (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
-#define parameter_check2(req,ext) do {if (codexec2.size() < req) {cout << "Error: required parameter not given in sub command " << ext << " (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
-#define parameter_check3(req,ext) do {if (codexec3.size() < req) {cout << "Error: required parameter not given in sub command " << ext << " (" << __FILE__ << "#" << __LINE__ << ")" << endl; return null;}} while (false)
+#define parameter_check(req) do {if (codexec.size() < req) {raise_ce("Error: required parameter not given") ;return null;}} while (false)
+#define parameter_check2(req,ext) do {if (codexec2.size() < req) {raise_ce(string("Error: required parameter not given in sub command ") + ext); return null;}} while (false)
+#define parameter_check3(req,ext) do {if (codexec3.size() < req) {raise_ce(string("Error: required parameter not given in sub command ") + ext); return null;}} while (false)
 #define dshell_check(req) do {if (spl.size() < req) {cout << "Bad command" << endl; goto dend;}} while (false)
 
 string curexp(string exp, varmap &myenv) {
@@ -977,14 +995,15 @@ void generateClass(string variable, string classname, varmap &myenv, bool run_in
 		vm.push();
 		vm.set_this(&myenv, variable);
 		__spec++;
-		run(myenv[classname + ".__init__"], vm);
+		string cini = classname + ".__init__";
+		run(myenv[cini], vm, cini);
 		__spec--;
 	}
 }
 
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
-intValue run(string code, varmap &myenv) {
+intValue run(string code, varmap &myenv, string fname) {
 	vector<string> codestream = split(code);
 	// Process codestream before run
 	for (auto &cep : codestream) {
@@ -1033,7 +1052,7 @@ intValue run(string code, varmap &myenv) {
 					dshell_check(2);
 					specialout();
 					__spec++;
-					run(spl[1], myenv);
+					run(spl[1], myenv, "Debugger");
 					__spec--;
 					begindout();
 				}
@@ -1073,7 +1092,7 @@ intValue run(string code, varmap &myenv) {
 			prevind--;
 		}
 		// To be filled ...
-		if (codexec[0] == "class" || codexec[0] == "function" || codexec[0] == "error_handler")  {
+		if (codexec[0] == "class" || codexec[0] == "function" || codexec[0] == "error_handler:")  {
 			string s = "";
 			do {
 				if (execptr >= codestream.size() - 1) {
@@ -1092,6 +1111,10 @@ intValue run(string code, varmap &myenv) {
 			parameter_check(2);
 			return calcute(codexec[1], myenv);
 		}
+		else if (codexec[0] == "raise") {
+			parameter_check(2);
+			raiseError(calcute(codexec[1], myenv), myenv, fname, execptr + 1, -1, "User define error");
+		}
 		else if (codexec[0] == "set") {
 			parameter_check(2);
 			vector<string> codexec2 = split(codexec[1], '=', 1);
@@ -1106,9 +1129,7 @@ intValue run(string code, varmap &myenv) {
 			if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "new ") {
 				vector<string> azer = split(codexec2[1], ' ');	// Classname is azer[1]
 				if (myenv[azer[1] + ".__must_inherit__"] == "1" || myenv[azer[1] + ".__shared__"] == "1") {
-					curlout();
-					cout << "Warning: class " << azer[1] << " is not allowed to create object." << endl;
-					endout();
+					raise_ce(string("Warning: class ") + azer[1] + " is not allowed to create object.");
 				}
 				else {
 					generateClass(codexec2[0], azer[1], myenv);
@@ -1663,17 +1684,18 @@ intValue run(string code, varmap &myenv) {
 
 intValue preRun(string code) {
 	// Should prepare functions for it.
-	varmap newenv;
-	newenv.push();
+	string fname = "Runtime preproessor";
+	varmap myenv;
+	myenv.push();
 	// Preset constants
 #pragma region Preset constants
-	newenv.set_global("LF", "\"\n\"");
-	newenv.set_global("TAB", "\"\t\"");
-	newenv.set_global("CLOCKS_PER_SEC", intValue(CLOCKS_PER_SEC).unformat());
-	newenv.set_global("true", "1");
-	newenv.set_global("false", "0");
-	newenv.set_global("err");			// Error information
-	newenv.set_global("__error_handler__", "print err");	// Preset error handler
+	myenv.set_global("LF", "\"\n\"");
+	myenv.set_global("TAB", "\"\t\"");
+	myenv.set_global("CLOCKS_PER_SEC", intValue(CLOCKS_PER_SEC).unformat());
+	myenv.set_global("true", "1");
+	myenv.set_global("false", "0");
+	myenv.set_global("err.__type__", "exception");			// Error information
+	myenv.set_global("__error_handler__", "print err.description+LF");	// Preset error handler
 #pragma endregion
 #pragma region Preset calls
 	intcalls["sleep"] = [](string args, varmap &env) -> intValue {
@@ -1682,6 +1704,14 @@ intValue preRun(string code) {
 	};
 	intcalls["system"] = [](string args, varmap &env) -> intValue {
 		system(calcute(args, env).str.c_str());
+		return null;
+	};
+	intcalls["exit"] = [](string args, varmap &env) -> intValue {
+		exit(int(calcute(args, env).numeric));
+		return null;
+	};
+	intcalls["set_color"] = [](string args, varmap &env) -> intValue {
+		setColor(DWORD(calcute(args, env).numeric));
 		return null;
 	};
 #pragma endregion
@@ -1703,6 +1733,7 @@ intValue preRun(string code) {
 	string curfun = "", cfname = "", cfargs = "";
 	int fun_indent = max_indent;
 	for (size_t i = 0; i < codestream.size(); i++) {
+		size_t &execptr = i;	// For macros
 		vector<string> codexec = split(codestream[i], ' ', 2);
 		if (codexec.size() <= 0 || codexec[0].length() <= 0) continue;
 		int ind = getIndent(codexec[0], 2);
@@ -1715,9 +1746,9 @@ intValue preRun(string code) {
 		}
 		else {
 			if (cfname.length()) {
-				newenv.set_global(cfname, curfun);
-				newenv.set_global(cfname + ".__type__", "function");
-				newenv.set_global(cfname + ".__arg__", cfargs);
+				myenv.set_global(cfname, curfun);
+				myenv.set_global(cfname + ".__type__", "function");
+				myenv.set_global(cfname + ".__arg__", cfargs);
 			}
 
 			cfname = "";
@@ -1739,8 +1770,8 @@ intValue preRun(string code) {
 					parameter_check(2);
 					if (codexec[1][codexec[1].length() - 1] == '\n') codexec[1].pop_back();
 					codexec[1].pop_back();	// ':'
-					newenv.set_global(codexec[1] + ".__type__", "class");
-					newenv.set_global(codexec[1]);
+					myenv.set_global(codexec[1] + ".__type__", "class");
+					myenv.set_global(codexec[1]);
 					curclass = codexec[1] + ".";
 				}
 				else if (codexec[0] == "import") {
@@ -1766,19 +1797,19 @@ intValue preRun(string code) {
 				}
 				else if (codexec[0] == "inherits") {
 					string &to_inherit = codexec[1];
-					if (newenv[to_inherit + ".__no_inherit__"] == "1") {
+					if (myenv[to_inherit + ".__no_inherit__"] == "1") {
 						curlout();
 						cout << "Warning: No inheriting class " << to_inherit << endl;
 						endout();
 					}
 					else {
 						string curn = curclass.substr(0, curclass.length() - 1);
-						string old_inherits = newenv[curn + ".__inherits__"];
+						string old_inherits = myenv[curn + ".__inherits__"];
 						if (old_inherits == "null" || old_inherits == "") old_inherits = "";
 						else old_inherits += ",";
-						newenv.set_global(curn + ".__inherits__", old_inherits + to_inherit);
+						myenv.set_global(curn + ".__inherits__", old_inherits + to_inherit);
 						// Run inheritance
-						newenv.copy_inherit(to_inherit, curn);
+						myenv.copy_inherit(to_inherit, curn);
 						inh_map.unions(to_inherit, curn);
 					}
 				}
@@ -1786,21 +1817,21 @@ intValue preRun(string code) {
 					string &to_share = codexec[1];
 					while (to_share.length() && to_share[to_share.length() - 1] == '\n') to_share.pop_back();
 					if (to_share == "class") {
-						newenv.set_global(curclass + "__shared__", "1");
+						myenv.set_global(curclass + "__shared__", "1");
 					}
 					else {
 						string to_set = curclass + to_share;
-						if (!newenv.count(to_set)) {
-							newenv.set_global(to_set);
+						if (!myenv.count(to_set)) {
+							myenv.set_global(to_set);
 						}
-						newenv.set_global(to_set + ".__shared__", "1");
+						myenv.set_global(to_set + ".__shared__", "1");
 					}
 				}
 				else if (codexec[0] == "must_inherit") {
-					newenv.set_global(curclass + "__must_inherit__", "1");
+					myenv.set_global(curclass + "__must_inherit__", "1");
 				}
 				else if (codexec[0] == "no_inherit") {
-					newenv.set_global(curclass + "__no_inherit__", "1");
+					myenv.set_global(curclass + "__no_inherit__", "1");
 				}
 				break;
 			default:
@@ -1825,18 +1856,18 @@ intValue preRun(string code) {
 		
 	}
 	if (cfname.length()) {
-		newenv.set_global(cfname, curfun);
-		newenv.set_global(cfname + ".__type__", "function");
-		newenv.set_global(cfname + ".__arg__", cfargs);
+		myenv.set_global(cfname, curfun);
+		myenv.set_global(cfname + ".__type__", "function");
+		myenv.set_global(cfname + ".__arg__", cfargs);
 	}
 	
 	//return null;
 	// End
 
-	intValue res = run(code, newenv);
+	intValue res = run(code, myenv, "Main function");
 
 	// For debug propose
-	//newenv.dump();
+	//myenv.dump();
 	return res;
 }
 
