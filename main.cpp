@@ -1310,13 +1310,18 @@ intValue run(string code, varmap &myenv, string fname) {
 					vector<string> sp = split(s, ' ', 1);
 					if (!sp.size()) continue;
 					if (r <= ind) break;
+					// -- Dismatches still? --
+					if (eptr >= codestream.size() - 1) {
+						eptr++;
+						break;
+					}
 				}
 				size_t ptr_to_check = eptr;
-				//if (getIndentRaw(codestream[ptr_to_check]) < ind) ptr_to_check--;	// If here's EOL
+				if (eptr >= codestream.size() - 1) ptr_to_check--;
 				string ep = codestream[ptr_to_check];
 				getIndent(ep);
 				if (jmptable.count(ptr_to_check) && getIndentRaw(codestream[ptr_to_check]) < ind &&(!beginWith(ep, "elif ")) && (!beginWith(ep, "else:"))) execptr = jmptable[ptr_to_check];
-				else execptr = ptr_to_check;	// Should be?
+				else execptr = eptr;	// Should be?
 				goto after_add_exp;
 			}
 		}
@@ -1502,9 +1507,10 @@ intValue run(string code, varmap &myenv, string fname) {
 					files.erase(f);
 				}
 				else {
-					curlout();
-					cout << "Incorrect file: " << f << endl;
-					endout();
+					//curlout();
+					//cout << "Incorrect file: " << f << endl;
+					//endout();
+					raise_ce("Incorrect file: " + to_string(f));
 				}
 				
 			}
@@ -1515,7 +1521,7 @@ intValue run(string code, varmap &myenv, string fname) {
 					fputs(calcute(codexec3[1], myenv).str.c_str(), files[f]);
 				}
 				else {
-					cout << "Incorrect file: " << f << endl;
+					raise_ce("Incorrect file: " + to_string(f));
 				}
 				
 			}
@@ -1535,7 +1541,9 @@ intValue run(string code, varmap &myenv, string fname) {
 					string op = calcute(codexec4[1], myenv).str;
 					files[n] = fopen(fn.c_str(), op.c_str());
 					if (files[n] == NULL || feof(files[n])) {
-						cout << "Cannot open file " << fn << " as " << n << ", errno: " << errno << endl;
+						//cout << "Cannot open file " << fn << " as " << n << ", errno: " << errno << endl;
+						//raise_ce("Cannot open file " + fn +)
+						raiseError(intValue(errno), myenv, fname, execptr + 1, 1, "Cannot open file " + fn + " as " + to_string(n));
 					}
 				}
 				else if (op == "read") {
@@ -1553,7 +1561,7 @@ intValue run(string code, varmap &myenv, string fname) {
 						myenv[codexec3[0]] = intValue(res).unformat();
 					}
 					else {
-						cout << "Incorrect file: " << fid << endl;
+						raise_ce("Incorrect file: " + to_string(fid));
 					}
 				}
 				else if (op == "valid") {
@@ -1580,7 +1588,7 @@ intValue run(string code, varmap &myenv, string fname) {
 						myenv[codexec3[0]] = intValue(getLength(fid)).unformat();
 					}
 					else {
-						cout << "Incorrect file: " << fid << endl;
+						raise_ce("Incorrect file: " + to_string(fid));
 					}
 				}
 				else if (op == "binary_read") {
@@ -1606,7 +1614,7 @@ intValue run(string code, varmap &myenv, string fname) {
 						//... For list
 					}
 					else {
-						cout << "Incorrect file: " << fid << endl;
+						raise_ce("Incorrect file: " + to_string(fid));
 					}
 				}
 				else if (op == "binary_write") {
@@ -1630,15 +1638,11 @@ intValue run(string code, varmap &myenv, string fname) {
 							delete[] buf;
 						}
 						else {
-							curlout();
-							cout << "Error: only list type supported while binary output" << endl;
-							endout();
+							raise_ce("Binary output requires list type");
 						}
 					}
 					else {
-						curlout();
-						cout << "Incorrect file: " << fid << endl;
-						endout();
+						raise_ce("Incorrect file: " + to_string(fid));
 					}
 				}
 			}
@@ -1659,7 +1663,7 @@ intValue run(string code, varmap &myenv, string fname) {
 			vector<string> codexec2 = split(codexec[1], ',', 1);
 			intValue result;
 			if (codexec2.size() <= 0 || (!intcalls.count(codexec2[0]))) {
-				cout << "Error: required system call does not exist" << endl;
+				raise_ce("Error: required system call does not exist");
 				goto add_exp;
 			}
 			if (codexec2.size() == 1) {
@@ -1682,6 +1686,8 @@ intValue run(string code, varmap &myenv, string fname) {
 	return null;
 }
 
+string env_name;	// Directory of current file.
+
 intValue preRun(string code) {
 	// Should prepare functions for it.
 	string fname = "Runtime preproessor";
@@ -1691,11 +1697,14 @@ intValue preRun(string code) {
 #pragma region Preset constants
 	myenv.set_global("LF", "\"\n\"");
 	myenv.set_global("TAB", "\"\t\"");
+	myenv.set_global("BKSP", "\"\b\"");
+	myenv.set_global("ALERT", "\"\a\"");
 	myenv.set_global("CLOCKS_PER_SEC", intValue(CLOCKS_PER_SEC).unformat());
 	myenv.set_global("true", "1");
 	myenv.set_global("false", "0");
 	myenv.set_global("err.__type__", "exception");			// Error information
-	myenv.set_global("__error_handler__", "print err.description+LF");	// Preset error handler
+	myenv.set_global("__error_handler__", "call set_color,14\nprint err.description+LF+err.value+LF\ncall set_color,7");	// Preset error handler
+	myenv.set_global("__file__", env_name);
 #pragma endregion
 #pragma region Preset calls
 	intcalls["sleep"] = [](string args, varmap &env) -> intValue {
@@ -1715,6 +1724,15 @@ intValue preRun(string code) {
 		return null;
 	};
 #pragma endregion
+	// Get my directory
+	size_t p = env_name.find_last_of('\\');
+	string env_dir;	// Directly add file name.
+	if (p <= 0) {
+		env_dir = "";
+	}
+	else {
+		env_dir = env_name.substr(0, p) + '\\';
+	}
 	vector<string> codestream;
 	// Initalize libraries right here
 	FILE *f = fopen("bmain.blue", "r");
@@ -1782,6 +1800,15 @@ intValue preRun(string code) {
 						while (!feof(f)) {
 							fgets(buf1, 65536, f);
 							codestream.push_back(buf1);
+						}
+					}
+					else {
+						f = fopen((env_dir + codexec2[1]).c_str(), "r");
+						if (f != NULL) {
+							while (!feof(f)) {
+								fgets(buf1, 65536, f);
+								codestream.push_back(buf1);
+							}
 						}
 					}
 				}
@@ -1924,9 +1951,8 @@ int main(int argc, char* argv[]) {
 			}
 		}
 	}
-	// debug
-	//cout << code << endl << "---" << endl << endl;
-	// end
+
+	env_name = file;
 
 	if (in_debug) {
 		begindout();
@@ -1938,18 +1964,7 @@ int main(int argc, char* argv[]) {
 			getline(cin, command);
 			vector<string> spl = split(command, ' ', 1);
 			if (spl.size() <= 0) continue;
-			/*if (spl[0] == "break") {
-				dshell_check(2);
-				breakpoints.insert(atoi(spl[1].c_str()));
-			}
-			else if (spl[0] == "bdel") {
-				if (breakpoints.count(atoi(spl[1].c_str()))) breakpoints.erase(atoi(spl[1].c_str()));
-			}
-			else if (spl[0] == "blist") {
-				for (auto &i : breakpoints) cout << i << " ";
-				cout << endl;
-			}
-			else */if (spl[0] == "quit") {
+			if (spl[0] == "quit") {
 				exit(0);
 			}
 		} while (command != "run");
