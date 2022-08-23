@@ -287,7 +287,15 @@ class varmap {
 						}
 					}
 				}
-				if (glob_vs.count(key)) return glob_vs[key];
+				
+				if (glob_vs.count(key)) {
+					if (unserial.count(glob_vs[key + ".__type__"])) {
+						return glob_vs[key];
+					}
+					else {
+						return glob_vs[key] = serial(key);
+					}
+				}
 				if (key.find('.') != string::npos) {
 					// Must in same layer
 					vector<string> la = split(key, '.', 1);
@@ -310,23 +318,15 @@ class varmap {
 			
 		}
 		string serial(string name) {
-			// Note: global variable can't contain class
-			
-			string tmp = mymagic;
 			for (vit i = vs.rbegin(); i != vs.rend(); i++) {
 				if (i->count(name)) {
-					for (auto &j : (*i)) {
-						if (beginWith(j.first, name + ".")) {
-							vector<string> spl = split(j.first, '.', 1);
-							// debug
-							//cout << "add: " << string(".") + spl[1] + "=" + j.second + "\n" << endl;
-							// end
-							tmp += string(".") + spl[1] + "=" + j.second + "\n";
-						}
-					}
+					return serial_from(*i, name);
 				}
 			}
-			return intValue(tmp).unformat();	// Simply make it setable
+			if (glob_vs.count(name)) {
+				return serial_from(glob_vs, name);
+			}
+			return mymagic;
 		}
 		void deserial(string name, string serial) {
 			if (!beginWith(serial, mymagic)) {
@@ -395,7 +395,6 @@ class varmap {
 			}
 			cout << "*** END OF DUMP ***" << endl;
 		}
-	
 		static void copy_inherit(string from, string dest) {
 			while (from[from.length() - 1] == '\n') from.pop_back();
 			while (dest[dest.length() - 1] == '\n') dest.pop_back();
@@ -418,6 +417,20 @@ class varmap {
 			// Where 'this' points. use '.'
 		const string mymagic = "__object$\n";
 private:
+	string serial_from(map<string, string> &obj, string name) {
+		string tmp = mymagic;
+		for (auto &j : obj) {
+			if (beginWith(j.first, name + ".")) {
+				//vector<string> spl = split(j.first, '.', 1);
+				vector<string> spl = { "","" };
+				size_t fl = j.first.find_last_of('.');
+				spl[0] = j.first.substr(0, fl);
+				spl[1] = j.first.substr(fl + 1);
+				tmp += string(".") + spl[1] + "=" + j.second + "\n";
+			}
+		}
+		return intValue(tmp).unformat();
+	}
 	const set<string> unserial = { "", "function", "class", "null" };
 
 	vector<map<string, string> >										vs;
@@ -534,7 +547,7 @@ intValue getValue(string single_expr, varmap &vm) {
 		// Must find last actually.
 		vector<string> dotspl = { "","" };
 		size_t fl = spl[0].find_last_of('.');
-		if (fl >= spl[0].length() && fl+1 >= spl[0].length()) {	// string::npos may overrides
+		if (fl >= string::npos || fl+1 >= spl[0].length()) {	// string::npos may overrides
 			dotspl[0] = spl[0];
 			dotspl.pop_back();
 		}
