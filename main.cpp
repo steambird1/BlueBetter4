@@ -530,7 +530,18 @@ intValue getValue(string single_expr, varmap &vm) {
 	}
 	else {
 		vector<string> spl = split(single_expr, ' ', 1);
-		vector<string> dotspl = split(spl[0], '.', 1);
+		//vector<string> dotspl = split(spl[0], '.', 1);
+		// Must find last actually.
+		vector<string> dotspl = { "","" };
+		size_t fl = spl[0].find_last_of('.');
+		if (fl >= spl[0].length() && fl+1 >= spl[0].length()) {	// string::npos may overrides
+			dotspl[0] = spl[0];
+			dotspl.pop_back();
+		}
+		else {
+			dotspl[0] = spl[0].substr(0, fl);
+			dotspl[1] = spl[0].substr(fl+1);
+		}
 		string set_this = "";
 		bool set_no_this = false;
 		if (dotspl.size() > 1 && vm[dotspl[0] + ".__type__"] != "null" && vm[dotspl[0] + ".__type__"] != "function") {
@@ -544,7 +555,7 @@ intValue getValue(string single_expr, varmap &vm) {
 			}
 			
 		}
-		if (vm[spl[0] + ".__type__"] == "function" || set_no_this) {
+		if (vm[spl[0] + ".__type__"] == "function") {
 			// A function call.
 			
 			varmap nvm;
@@ -1904,7 +1915,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test2.blue";
+	string code = "", file = "test4.blue";
 	in_debug = true;
 	no_lib = false;
 
