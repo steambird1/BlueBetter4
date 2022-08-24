@@ -1556,7 +1556,7 @@ intValue run(string code, varmap &myenv, string fname) {
  					codexec3 = split(codexec2[1], '=', 1);
 					vector<string> codexec4 = split(codexec3[1], ',', 1);
 					int n = 0;
-					while (files.count(n++));
+					while (files.count(++n));
 					if (codexec3[0].find(":") != string::npos) {
 						codexec3[0] = curexp(codexec3[0], myenv);
 					}
@@ -1929,7 +1929,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test1.blue";
+	string code = "", file = "test2.blue";
 	in_debug = true;
 	no_lib = false;
 
