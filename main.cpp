@@ -425,6 +425,7 @@ private:
 				vector<string> spl = { "","" };
 				size_t fl = j.first.find_last_of('.');
 				spl[0] = j.first.substr(0, fl);
+				if (spl[0] != name) continue;
 				spl[1] = j.first.substr(fl + 1);
 				tmp += string(".") + spl[1] + "=" + j.second + "\n";
 			}
@@ -1928,7 +1929,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test4.blue";
+	string code = "", file = "test1.blue";
 	in_debug = true;
 	no_lib = false;
 
