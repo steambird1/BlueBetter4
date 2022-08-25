@@ -80,7 +80,6 @@ class binary_reader:
 	function open fn:
 		run this._basic_file@open fn,"rb"
 	function read_binary_to_end:
-		debugger
 		file binary_read tmp=this.handle
 		return tmp
 
@@ -103,7 +102,7 @@ function random:
 	return tmp
 
 function random_ranged min_r max_r:
-	return random%(max_r-min_r)+min_r;
+	return random%(max_r-min_r)+min_r
 
 class reference:
 	shared class
