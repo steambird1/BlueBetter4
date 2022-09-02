@@ -1105,7 +1105,6 @@ intValue run(string code, varmap &myenv, string fname) {
 		vector<string> codexec = split(cep, ' ', 1);
 		if (codexec.size() && codexec[0][0] == '\n') codexec[0].erase(codexec[0].begin()); // LF, why?
 		int ind = getIndent(codexec[0]);
-		if (codexec.size() <= 0 || codexec[0][0] == '#') goto add_exp;	// Comment
 		jmptable.revert_all(execptr);
 		noroll = false;
 		while (prevind < ind) {
@@ -1117,7 +1116,8 @@ intValue run(string code, varmap &myenv, string fname) {
 			prevind--;
 		}
 		// To be filled ...
-		if (codexec[0] == "class" || codexec[0] == "function" || codexec[0] == "error_handler:")  {
+		if (codexec.size() <= 0 || codexec[0][0] == '#') goto add_exp;	// Be proceed as command
+		else if (codexec[0] == "class" || codexec[0] == "function" || codexec[0] == "error_handler:")  {
 			string s = "";
 			do {
 				if (execptr >= codestream.size() - 1) {
@@ -1342,7 +1342,7 @@ intValue run(string code, varmap &myenv, string fname) {
 					}
 				}
 				size_t ptr_to_check = eptr;
-				if (eptr >= codestream.size() - 1) ptr_to_check--;
+				if (eptr >= codestream.size() - 1) ptr_to_check = codestream.size() - 1;	// Special processor for the last line
 				string ep = codestream[ptr_to_check];
 				getIndent(ep);
 				if (jmptable.count(ptr_to_check) && getIndentRaw(codestream[ptr_to_check]) < ind &&(!beginWith(ep, "elif ")) && (!beginWith(ep, "else:"))) execptr = jmptable[ptr_to_check];
@@ -1473,6 +1473,7 @@ intValue run(string code, varmap &myenv, string fname) {
 			myenv[codexec2[0]] = current.unformat();
 			if (calcute(myenv[codexec2[0]], myenv).numeric == calcute(rangeobj[1], myenv).numeric) {
 				// Jump where end-of-loop
+				myenv.tree_clean(codexec2[0]);
 				noroll = true; //  End of statements' life
 				int r;
 				while (execptr != codestream.size() - 1) {
@@ -1675,6 +1676,9 @@ intValue run(string code, varmap &myenv, string fname) {
 		}
 		else if (codexec[0] == "import") {
 			// Do nothing
+		}
+		else if (codexec[0] == "__dev__") {
+		cout << "Developer call" << endl;
 		}
 		else if (codexec[0] == "debugger") {
 		if (in_debug) {
@@ -1923,6 +1927,7 @@ intValue preRun(string code) {
 	return res;
 }
 
+
 int main(int argc, char* argv[]) {
 	stdouth = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -1945,6 +1950,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
+	string version_info = string("BlueBetter Interpreter\nVersion 1.8c\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
@@ -1952,20 +1958,25 @@ int main(int argc, char* argv[]) {
 		cout << "Usage: " << argv[0] << " filename [options]";
 		return 1;
 	}
-	if (!file.length() && !code.length()) {
-		file = argv[1];
-	}
+	
 #pragma region Read Options
 	for (int i = 2; i < argc; i++) {
 		string opt = argv[i];
 		if (opt == "--debug") {
 			in_debug = true;
 		}
-		else if (opt == "--no-lib") {
-			no_lib = true;
-		}
 	}
 #pragma endregion
+
+	if (!file.length() && !code.length()) {
+		file = argv[1];
+	}
+
+	if (file == "--version") {
+		// = true;
+		cout << version_info << endl;
+		return 0;
+	}
 
 	if (!code.length()) {
 		FILE *f = fopen(file.c_str(), "r");
