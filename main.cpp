@@ -1727,7 +1727,7 @@ intValue run(string code, varmap &myenv, string fname) {
 
 string env_name;	// Directory of current file.
 
-intValue preRun(string code) {
+intValue preRun(string code, map<string, string> required_global = {}, map<string, bcaller> required_callers = {}) {
 	// Should prepare functions for it.
 	string fname = "Runtime preproessor";
 	varmap myenv;
@@ -1744,6 +1744,10 @@ intValue preRun(string code) {
 	myenv.set_global("err.__type__", "exception");			// Error information
 	myenv.set_global("__error_handler__", "call set_color,14\nprint err.description+LF+err.value+LF\ncall set_color,7");	// Preset error handler
 	myenv.set_global("__file__", env_name);
+	// Insert more global variable
+	for (auto &i : required_global) {
+		myenv.set_global(i.first, i.second);
+	}
 #pragma endregion
 #pragma region Preset calls
 	intcalls["sleep"] = [](string args, varmap &env) -> intValue {
@@ -1762,6 +1766,9 @@ intValue preRun(string code) {
 		setColor(DWORD(calcute(args, env).numeric));
 		return null;
 	};
+	for (auto &i : required_callers) {
+		intcalls[i.first] = i.second;
+	}
 #pragma endregion
 	// Get my directory
 	size_t p = env_name.find_last_of('\\');
@@ -1960,7 +1967,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.8c\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.9\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
@@ -2017,5 +2024,5 @@ int main(int argc, char* argv[]) {
 		endout();
 	}
 
-	return preRun(code).numeric;
+	return preRun(code, { {"FILE_NAME", intValue(file).unformat()}  }).numeric;
 }
