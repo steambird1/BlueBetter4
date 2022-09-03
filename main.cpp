@@ -547,6 +547,9 @@ intValue getValue(string single_expr, varmap &vm) {
 		// Neither string nor number, variable test
 		//vector<string> dotspl = split(spl[0], '.', 1);
 		// Must find last actually.
+		if (spl.size() && spl[0].length() && spl[0][0] == '$') {
+			spl[0] = getValue(vm[spl[0].substr(1)], vm).str;
+		}
 		vector<string> dotspl = { "","" };
 		size_t fl = spl[0].find_last_of('.');
 		if (fl >= string::npos || fl+1 >= spl[0].length()) {	// string::npos may overrides
@@ -572,9 +575,6 @@ intValue getValue(string single_expr, varmap &vm) {
 		}
 		if (vm[spl[0] + ".__type__"] == "function") {
 			// A function call.
-			if (spl.size() && spl[0].length() > 0 && spl[0][0] == '$') {
-				spl[0] = calcute(vm[spl[0].substr(1)], vm).str;
-			}
 			varmap nvm;
 			nvm.push();
 			nvm.set_this(vm.this_source, vm.this_name);
@@ -647,10 +647,7 @@ intValue getValue(string single_expr, varmap &vm) {
 			return r;
 		}
 		else {
-			if (spl.size() && spl[0].length() > 0 && spl[0][0] == '$') {
-				return calcute(vm[spl[0].substr(1)], vm);
-			}
-			auto r = getValue(vm[single_expr], vm);
+			auto r = getValue(vm[spl[0]], vm);
 			if (r.isNumeric && neg < 0) {
 				r = intValue(-r.numeric);
 			}
@@ -1195,13 +1192,6 @@ intValue run(string code, varmap &myenv, string fname) {
 			else if (codexec2[1] == "clear") {
 				myenv.tree_clean(codexec2[0]);
 			}
-#pragma region CallByName Value Support
-			else if (beginWith(codexec2[1], "callbyname")) {
-				vector<string> codexec3 = split(codexec2[1], ' ', 2); // [0] = 'callbyname' [1] function name [2] parameters
-				string fn = calcute(codexec3[1], myenv).str;
-				myenv[codexec2[0]] = getValue(fn + " " + codexec3[2], myenv).unformat();
-			}
-#pragma endregion
 #pragma region Internal Calcutions
 			else if (codexec2[1] == "__input") {
 				string t;
@@ -1723,15 +1713,6 @@ intValue run(string code, varmap &myenv, string fname) {
 			}
 			myenv.set_global("__call_return", result.unformat());
 		}
-		else if (codexec[0] == "callbyname") {
-
-		//else if (beginWith(codexec2[1], "callbyname")) {
-		auto &codexec2 = codexec;
-		vector<string> codexec3 = split(codexec2[1], ' ', 2); // [0] = 'callbyname' [1] function name [2] parameters
-		string fn = calcute(codexec3[0], myenv).str;
-		getValue(fn + " " + codexec3[1], myenv).unformat();
-		//	}
-		}
 	add_exp: if (jmptable.count(execptr)) {
 		execptr = jmptable[execptr];
 	}
@@ -1964,7 +1945,7 @@ int main(int argc, char* argv[]) {
 #pragma region Compiler Test Option
 #if _DEBUG
 	string code = "", file = "test2.blue";
-	in_debug = true;
+	in_debug = false;
 	no_lib = false;
 
 	if (code.length()) {

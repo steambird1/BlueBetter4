@@ -119,6 +119,8 @@ class reference:
 		set reference.refdata:point=obj
 	function valid point:
 		return not isnull refrence.reference.refdata:point
+	function getexp point:
+		return "reference.refdata."+point
 
 function typeof obj:
 	set o=object obj
