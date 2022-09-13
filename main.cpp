@@ -552,29 +552,44 @@ intValue getValue(string single_expr, varmap &vm) {
 		}
 		vector<string> dotspl = { "","" };
 		size_t fl = spl[0].find_last_of('.');
-		if (fl >= string::npos || fl+1 >= spl[0].length()) {	// string::npos may overrides
+		if (fl >= string::npos || fl + 1 >= spl[0].length()) {	// string::npos may overrides
 			dotspl[0] = spl[0];
 			dotspl.pop_back();
 		}
 		else {
 			dotspl[0] = spl[0].substr(0, fl);
-			dotspl[1] = spl[0].substr(fl+1);
+			dotspl[1] = spl[0].substr(fl + 1);
 		}
 		string set_this = "";
 		bool set_no_this = false;
+		bool class_obj = false;
 		if (dotspl.size() > 1 && vm[dotspl[0] + ".__type__"] != "null" && vm[dotspl[0] + ".__type__"] != "function") {
+			class_obj = true;
 			if (vm[dotspl[0] + ".__type__"] == "class" && (vm[dotspl[0] + ".__shared__"] == "1" || vm[spl[0] + ".__shared__"] == "1")) {
 				// Do nothing!
 				set_no_this = true;
 			}
 			else {
 				set_this = dotspl[0];
-				spl[0] = vm[dotspl[0] + ".__type__"] + "." + dotspl[1];
+
 			}
-			
+
 		}
-		if (vm[spl[0] + ".__type__"] == "function") {
+		bool is_func = false;
+		if (class_obj) {
+			//if (class_obj) spl[0] = vm[dotspl[0] + ".__type__"] + "." + dotspl[1];	// Call the list function.
+			string tmp = vm[dotspl[0] + ".__type__"] + "." + dotspl[1];
+			if (vm[tmp + ".__type__"] == "function") {
+				is_func = true;
+				spl[0] = tmp;
+			}
+		}
+		else {
+			is_func = vm[spl[0] + ".__type__"] == "function";
+		}
+		if (is_func) {
 			// A function call.
+			
 			varmap nvm;
 			nvm.push();
 			nvm.set_this(vm.this_source, vm.this_name);
@@ -1952,7 +1967,7 @@ int main(int argc, char* argv[]) {
 #pragma region Compiler Test Option
 #if _DEBUG
 	string code = "", file = "test2.blue";
-	in_debug = false;
+	in_debug = true;
 	no_lib = false;
 
 	if (code.length()) {
