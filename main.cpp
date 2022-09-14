@@ -2038,7 +2038,12 @@ int main(int argc, char* argv[]) {
 			// String values only
 			vector<string> spl = split(opt, ':', 1);
 			vector<string> key_value = split(spl[1], '=', 1);
-			reqs[key_value[0]] = intValue(reqs[key_value[1]]).unformat();
+			reqs[key_value[0]] = intValue(key_value[1]).unformat();
+			// test:
+			//specialout();
+			//cout << "Set: " << key_value[0] << "=" << reqs[key_value[0]] << endl;
+			//endout();
+			// end
 		}
 	}
 #pragma endregion
