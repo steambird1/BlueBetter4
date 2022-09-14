@@ -976,21 +976,23 @@ public:
 		}
 	}
 
-	bool revert(size_t origin, size_t revert_from) {
+	bool revert(size_t origin, size_t revert_from, bool omit = false) {
 		bool flag = false;
 		while (jmper[origin].size() && jmper[origin][jmper[origin].size()-1] == revert_from) {
 			jmper[origin].pop_back();
 			flag = true;
 		}
-		if (flag) reverted[origin] = revert_from;
+		if (flag && (!omit)) {
+			reverted[origin] = revert_from;
+		}
 		return flag;
 	}
 
-	bool revert_all(size_t revert_from) {
+	bool revert_all(size_t revert_from, bool omit = false) {
 		clear_revert();
 		bool flag = false;
 		for (auto &i : jmper) {
-			flag |= revert(i.first, revert_from);
+			flag |= revert(i.first, revert_from, omit);
 		}
 		return flag;
 	}
@@ -1354,6 +1356,9 @@ intValue run(string code, varmap &myenv, string fname) {
 			else {
 				// Go on elif / else
 				size_t eptr = execptr + 1;
+				if (eptr >= codestream.size() - 1) {
+					eptr++;
+				}
 				while (eptr < codestream.size() - 1) {
 					// End if indent equals and not 'elif' or 'else'.
 					string s = codestream[++eptr];
@@ -1367,12 +1372,23 @@ intValue run(string code, varmap &myenv, string fname) {
 						break;
 					}
 				}
-				size_t ptr_to_check = eptr;
-				if (eptr >= codestream.size() - 1) ptr_to_check = codestream.size() - 1;	// Special processor for the last line
-				string ep = codestream[ptr_to_check];
-				getIndent(ep);
-				if (jmptable.count(ptr_to_check) && getIndentRaw(codestream[ptr_to_check]) < ind &&(!beginWith(ep, "elif ")) && (!beginWith(ep, "else:"))) execptr = jmptable[ptr_to_check];
-				else execptr = eptr;	// Should be?
+				bool has_right = false;
+				string ep = "";
+				if (eptr >= codestream.size()) {
+					has_right = true;
+				}
+				else if (eptr <= 0) {
+					has_right = false;	// How can you proceed jump on the first line?
+				}
+				else {
+					ep = codestream[eptr];
+					getIndent(ep);
+					has_right = getIndentRaw(codestream[eptr]) <= ind;
+					// However:
+					if (beginWith(ep, "elif") || beginWith(ep, "else:")) has_right = false;	// No jumping here
+				}
+				if (has_right && jmptable.count(eptr - 1)) execptr = jmptable[eptr - 1];
+				else execptr = eptr;
 				goto after_add_exp;
 			}
 		}
@@ -1460,7 +1476,8 @@ intValue run(string code, varmap &myenv, string fname) {
 			}
 
 		}
-		// ep is the position
+		// ep is the position of the block.
+		jmptable.revert_all(ep, true);
 			while (true) {
 				execptr++;
 				if (execptr >= codestream.size()) break;
@@ -1988,7 +2005,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test2.blue";
+	string code = "", file = "test4.blue";
 	in_debug = true;
 	no_lib = false;
 
