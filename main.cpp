@@ -1383,9 +1383,10 @@ intValue run(string code, varmap &myenv, string fname) {
 				else {
 					ep = codestream[eptr];
 					getIndent(ep);
-					has_right = getIndentRaw(codestream[eptr]) <= ind;
+					auto gr = getIndentRaw(codestream[eptr]);
+					has_right = gr <= ind;
 					// However:
-					if (beginWith(ep, "elif") || beginWith(ep, "else:")) has_right = false;	// No jumping here
+					if (beginWith(ep, "elif") || beginWith(ep, "else:")) if (gr == ind) has_right = false;	// No jumping here
 				}
 				if (has_right && jmptable.count(eptr - 1)) execptr = jmptable[eptr - 1];
 				else execptr = eptr;
@@ -2005,7 +2006,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test4.blue";
+	string code = "", file = "test3.blue";
 	in_debug = true;
 	no_lib = false;
 
