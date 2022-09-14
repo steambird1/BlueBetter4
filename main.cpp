@@ -1141,6 +1141,7 @@ intValue run(string code, varmap &myenv, string fname) {
 			prevind--;
 		}
 		// To be filled ...
+		string prerun = cep;
 		if (codexec.size() <= 0 || codexec[0][0] == '#') goto add_exp;	// Be proceed as command
 		else if (codexec[0] == "class" || codexec[0] == "function" || codexec[0] == "error_handler:")  {
 			string s = "";
@@ -1712,11 +1713,21 @@ intValue run(string code, varmap &myenv, string fname) {
 }
 		else if (codexec[0] == "call") {
 			// Call internal calls
-			// call [callname],[parameter]
+			// call ([var]=)[callname],[parameter]
 			parameter_check(2);
 			vector<string> codexec2 = split(codexec[1], ',', 1);
 			intValue result;
-			if (codexec2.size() <= 0 || (!intcalls.count(codexec2[0]))) {
+			if (codexec2.size() <= 0) {
+				raise_ce("Error: required parameter missing");
+				goto add_exp;
+			}
+			string save_target = "";
+			if (codexec2[0].find('=') != string::npos) {
+				vector<string> spl = split(codexec2[0], '=', 1);
+				save_target = spl[0];
+				codexec2[0] = spl[1];
+			}
+			if ((!intcalls.count(codexec2[0]))) {
 				raise_ce("Error: required system call does not exist");
 				goto add_exp;
 			}
@@ -1726,7 +1737,14 @@ intValue run(string code, varmap &myenv, string fname) {
 			else if (codexec2.size() == 2) {
 				result = intcalls[codexec2[0]](codexec2[1], myenv);
 			}
-			myenv.set_global("__call_return", result.unformat());
+			//myenv.set_global("__call_return", result.unformat());
+			if (save_target.length()) {
+				myenv[save_target] = result.unformat();
+			}
+		}
+		else {
+			// = run ...
+			calcute(prerun, myenv);
 		}
 	add_exp: if (jmptable.count(execptr)) {
 		execptr = jmptable[execptr];
@@ -1780,6 +1798,10 @@ intValue preRun(string code, map<string, string> required_global = {}, map<strin
 	intcalls["set_color"] = [](string args, varmap &env) -> intValue {
 		setColor(DWORD(calcute(args, env).numeric));
 		return null;
+	};
+	// Remind you that eval is dangerous!
+	intcalls["eval"] = [](string args, varmap &env) -> intValue {
+		return run(calcute(args, env).str, env, "Internal eval()");
 	};
 	for (auto &i : required_callers) {
 		intcalls[i.first] = i.second;
@@ -1992,13 +2014,6 @@ int main(int argc, char* argv[]) {
 	}
 	
 #pragma region Read Options
-	for (int i = 2; i < argc; i++) {
-		string opt = argv[i];
-		if (opt == "--debug") {
-			in_debug = true;
-		}
-	}
-#pragma endregion
 
 	if (!file.length() && !code.length()) {
 		file = argv[1];
@@ -2010,6 +2025,24 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 
+	env_name = file;
+	map<string, string> reqs = { {"FILE_NAME", intValue(file).unformat()} };
+	map<string, bcaller> callers;	// Insert your requirements here
+
+	for (int i = 2; i < argc; i++) {
+		string opt = argv[i];
+		if (opt == "--debug") {
+			in_debug = true;
+		}
+		else if (beginWith(opt, "--const:")) {
+			// String values only
+			vector<string> spl = split(opt, ':', 1);
+			vector<string> key_value = split(spl[1], '=', 1);
+			reqs[key_value[0]] = intValue(reqs[key_value[1]]).unformat();
+		}
+	}
+#pragma endregion
+
 	if (!code.length()) {
 		FILE *f = fopen(file.c_str(), "r");
 		if (f != NULL) {
@@ -2019,8 +2052,6 @@ int main(int argc, char* argv[]) {
 			}
 		}
 	}
-
-	env_name = file;
 
 	if (in_debug) {
 		begindout();
@@ -2039,5 +2070,5 @@ int main(int argc, char* argv[]) {
 		endout();
 	}
 
-	return preRun(code, { {"FILE_NAME", intValue(file).unformat()}  }).numeric;
+	return preRun(code, reqs, callers).numeric;
 }
