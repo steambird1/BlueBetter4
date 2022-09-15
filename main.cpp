@@ -561,13 +561,14 @@ intValue getValue(string single_expr, varmap &vm) {
 			dotspl[1] = spl[0].substr(fl + 1);
 		}
 		string set_this = "";
-		bool set_no_this = false;
+		bool set_no_this = false, is_static = false;
 		bool class_obj = false;
 		if (dotspl.size() > 1 && vm[dotspl[0] + ".__type__"] != "null" && vm[dotspl[0] + ".__type__"] != "function") {
 			class_obj = true;
 			if (vm[dotspl[0] + ".__type__"] == "class" && (vm[dotspl[0] + ".__shared__"] == "1" || vm[spl[0] + ".__shared__"] == "1")) {
 				// Do nothing!
 				set_no_this = true;
+				is_static = true;
 			}
 			else {
 				set_this = dotspl[0];
@@ -578,7 +579,14 @@ intValue getValue(string single_expr, varmap &vm) {
 		bool is_func = false;
 		if (class_obj) {
 			//if (class_obj) spl[0] = vm[dotspl[0] + ".__type__"] + "." + dotspl[1];	// Call the list function.
-			string tmp = vm[dotspl[0] + ".__type__"] + "." + dotspl[1];
+			string header;
+			if (is_static) {
+				header = dotspl[0];
+			}
+			else {
+				header = vm[dotspl[0] + ".__type__"];
+			}
+			string tmp = header + "." + dotspl[1];
 			if (vm[tmp + ".__type__"] == "function") {
 				is_func = true;
 				spl[0] = tmp;
