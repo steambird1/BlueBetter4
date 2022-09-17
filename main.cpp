@@ -187,6 +187,14 @@ struct intValue {
 #define raise_varmap_ce(description) raiseError(null, *this, "Runtime", 0, __LINE__, description)
 #define raise_gv_ce(description) raiseError(null, vm, "Runtime", 0, __LINE__, description);
 
+inline int countOf(string str, char charToFind) {
+	int count = 0;
+	for (auto &i : str) {
+		if (i == charToFind) count++;
+	}
+	return count;
+}
+
 // All the varmaps show one global variable space.
 /*
 Special properties:
@@ -196,6 +204,7 @@ __init__		For a class definition, showing its initalizing function.
 	For class,	[name].[function]
 __type__		For a class object, showing its kind.
 __inherits__	For a class object, showing its inherited class (split using ','.)
+__hidden__		For a class definition, showing if this value will be hidden during get_member (if 'forceShow' is not given).
 
 Extras:
 __must_inherit__		For a class objct, 1 if it must be inherited.
@@ -211,8 +220,11 @@ __is_sharing__				(User define) symbol if is calling shared thing.
 	(If __is_sharing__ = 1, call of "this" will fail.)
 
 */
+// Specify what will not be copied.
 const set<string> nocopy = { ".__type__", ".__inherits__", ".__arg__", ".__must_inherit__", ".__no_inherit__" };
-class varmap {
+// Specify what will not be lookup.
+const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_inherit__", ".__no_inherit__", ".__init__", ".__hidden__", ".__shared__" };
+ class varmap {
 	public:
 		
 		typedef vector<map<string,string> >::reverse_iterator			vit;
@@ -328,6 +340,17 @@ class varmap {
 			}
 			return mymagic;
 		}
+		vector<string> get_member(string name, bool force_show = false) {
+			for (vit i = vs.rbegin(); i != vs.rend(); i++) {
+				if (i->count(name)) {
+					return get_member_from(*i, name, force_show);
+				}
+			}
+			if (glob_vs.count(name)) {
+				return get_member_from(glob_vs, name, force_show);
+			}
+			return vector<string>();
+		}
 		void deserial(string name, string serial) {
 			if (!beginWith(serial, mymagic)) {
 				return;
@@ -417,6 +440,36 @@ class varmap {
 			// Where 'this' points. use '.'
 		const string mymagic = "__object$\n";
 private:
+	vector<string> get_member_from(map<string, string> &obj, string name, bool force_show = false) {
+		vector<string> result;
+		string mytype = (*this)[name + ".__type__"];
+		if (unserial.count(mytype)) mytype = "";
+		for (auto &i : obj) {
+			// Only lookup for one
+			size_t dpos = i.first.find_first_of('.');
+			if (dpos > i.first.length()) continue;
+			string keyname = i.first.substr(dpos);
+			if (countOf(i.first, '.') == 1) {
+				bool isshown = true;
+				if ((!force_show) && (mytype.length())) {
+					for (auto &j : magics) {
+						if (i.first.find(j) != string::npos) {
+							isshown = false;
+							break;
+						}
+					}
+					if (isshown) {
+						string hiddener = mytype + keyname + ".__hidden__";
+						if ((*this)[hiddener] == "1") isshown = false;
+					}
+				}
+				if (force_show || isshown) {
+					result.push_back(keyname);
+				}
+			}
+		}
+		return result;
+	}
 	string serial_from(map<string, string> &obj, string name) {
 		string tmp = mymagic;
 		for (auto &j : obj) {
@@ -818,6 +871,7 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 
 // The interpretion of '\\', '"' will be finished here! Check the code.
 intValue calcute(string expr, varmap &vm) {
+	if (expr.length() == 0) return null;
 	if (beginWith(expr, vm.mymagic)) {
 		raise_gv_ce("Warning: Calcute of object without serial");
 	}
@@ -1308,6 +1362,19 @@ intValue run(string code, varmap &myenv, string fname) {
 					}
 				}
 			}
+			else if (beginWith(codexec2[1], "__membersof")) {
+			vector<string> codexec3 = split(codexec2[1], ' ', 1);
+			parameter_check3(2, "Operator number");
+			if (codexec3[1].find(':') != string::npos) {
+				codexec3[1] = curexp(codexec3[1], myenv);
+			}
+			auto result = myenv.get_member(codexec3[1]);
+			generateClass(codexec2[0], "list", myenv);
+			for (size_t i = 0; i < result.size(); i++) {
+				myenv[codexec2[0] + "." + to_string(i)] = intValue(result[i]).unformat();
+			}
+			myenv[codexec2[0] + ".length"] = intValue(result.size()).unformat();
+}
 #pragma endregion
 			else {
 				myenv[codexec2[0]] = calcute(codexec2[1], myenv).unformat();
@@ -1969,6 +2036,13 @@ intValue preRun(string code, map<string, string> required_global = {}, map<strin
 				else if (codexec[0] == "no_inherit") {
 					myenv.set_global(curclass + "__no_inherit__", "1");
 				}
+				else if (codexec[0] == "hidden") {
+					parameter_check(2);
+					string &ce = codexec[1];
+					while (ce.length() && (ce[0] == '\n')) ce.erase(ce.begin());
+					while (ce.length() && (ce[ce.length() - 1] == '\n')) ce.pop_back();
+					myenv.set_global(curclass + ce + ".__hidden__", "1");
+				}
 				break;
 			default:
 				break;
@@ -2030,7 +2104,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.9\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.10\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 

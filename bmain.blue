@@ -3,6 +3,7 @@ class exception:
 		# Do nothing, reserved class
 
 class list:
+	hidden length
 	init:
 		set this.length=0
 	function append data:
@@ -139,6 +140,11 @@ function inheritanceof first second:
 	set fo=object first
 	set so=object second
 	set temp=__inheritanceof fo,so
+	return temp
+
+function membersof obj:
+	set curo=object obj
+	set temp=__membersof curo
 	return temp
 
 function isnull obj:
