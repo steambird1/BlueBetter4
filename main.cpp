@@ -31,8 +31,11 @@ intValue calcute(string expr, varmap &vm);
 void raiseError(intValue raiseValue, varmap &myenv, string source_function = "Unknown source", size_t source_line = 0, double error_id = 0, string error_desc = "");
 
 HANDLE stdouth;
+DWORD precolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN, nowcolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;
 void setColor(DWORD color) {
 	SetConsoleTextAttribute(stdouth, color);
+	precolor = nowcolor;
+	nowcolor = color;
 }
 
 inline void begindout() {
@@ -40,7 +43,8 @@ inline void begindout() {
 }
 
 inline void endout() {
-	setColor(FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN);
+	
+	setColor(precolor);
 }
 
 inline void specialout() {
@@ -1027,6 +1031,9 @@ public:
 	}
 
 	size_t& operator [](size_t origin) {
+		//if (origin == 11) {
+		//	cout << "*Developer Debugger*" << endl;
+		//}
 		if ((!jmper.count(origin)) || jmper[origin].size() < 1) {
 			jmper[origin] = vector<size_t>({ UINT16_MAX });
 			return jmper[origin][0];
@@ -1071,7 +1078,7 @@ public:
 	}
 
 	bool count(size_t origin) {
-		return jmper.count(origin);
+		return jmper.count(origin) && jmper[origin].size();
 	}
 
 private:
@@ -1401,11 +1408,14 @@ intValue run(string code, varmap &myenv, string fname) {
 			if (calcute(codexec[1], myenv).boolean()) {
 				// True, go on execution, and set jumper to the end of else before any else / elif
 				size_t rptr = execptr;								// Where our code ends
-				while (rptr < codestream.size()-1 && getIndentRaw(codestream[++rptr]) != ind);	// Go on until aligned else / elif
-				if (getIndentRaw(codestream[rptr]) != ind) rptr = codestream.size() - 1; //rptr--;												// Something strange
-				else rptr--;
+				while (rptr < codestream.size()-1 && getIndentRaw(codestream[++rptr]) > ind);	// Go on until aligned else / elif
+				//if (getIndentRaw(codestream[rptr]) != ind) rptr = codestream.size() - 1; //rptr--;												// Something strange
+				//else rptr--;
+				//rptr--;	// For too much adds.
+				if (getIndentRaw(codestream[rptr]) <= ind) rptr--;
 				size_t eptr = execptr;
 				int r;
+				bool has_right = false;
 				while (eptr < codestream.size() - 1) {
 					// End if indent equals and not 'elif' or 'else'.
 					//if () break;
@@ -1423,8 +1433,22 @@ intValue run(string code, varmap &myenv, string fname) {
 				if (r > ind) eptr++;	// Last line still not acceptable
 			//	jmptable[rptr] = jmptable[eptr];	// Already end of code!
 			//	goto end102;
+				if (eptr == 0) {
+					has_right = false;
+				}
+				else if (eptr >= codestream.size() - 1) {
+					has_right = true;
+				}
+				else {
+					string ep = codestream[eptr];
+					getIndent(ep);
+					auto gr = getIndentRaw(codestream[eptr]);
+					has_right = gr <= ind;
+					// However:
+					if (beginWith(ep, "elif") || beginWith(ep, "else:")) if (gr == ind) has_right = false;	// No jumping here
+				}
 				if (jmptable.count(eptr)) eptr = jmptable[eptr];
-				else if (jmptable.count(eptr - 1)) eptr = jmptable[eptr - 1];	//?
+				else if (has_right && jmptable.count(eptr - 1)) eptr = jmptable[eptr - 1];	//?
 			end101: jmptable[rptr] = eptr;
 			end102:;
 			}
@@ -1601,6 +1625,12 @@ intValue run(string code, varmap &myenv, string fname) {
 					if (r < ind) { // Multi-jump at once: Too far
 						// Direct jumps
 						if (jmptable.count(execptr - 1)) execptr = jmptable[execptr - 1];
+						goto after_add_exp;
+					}
+					if (execptr == codestream.size() - 1) {
+						// Still not match
+						if (jmptable.count(execptr)) execptr = jmptable[execptr];
+						else execptr++;
 						goto after_add_exp;
 					}
 				}
@@ -1797,7 +1827,9 @@ intValue run(string code, varmap &myenv, string fname) {
 			// Do nothing
 		}
 		else if (codexec[0] == "__dev__") {
+		specialout();
 		cout << "Developer call" << endl;
+		endout();
 		}
 		else if (codexec[0] == "debugger") {
 		if (in_debug) {
