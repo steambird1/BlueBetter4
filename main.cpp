@@ -1150,8 +1150,8 @@ intValue run(string code, varmap &myenv, string fname) {
 			myenv.pop();
 			prevind--;
 		}
-		// To be filled ...
 		string prerun = cep;
+		getIndent(prerun);	//?
 		if (codexec.size() <= 0 || codexec[0][0] == '#') goto add_exp;	// Be proceed as command
 		else if (codexec[0] == "class" || codexec[0] == "function" || codexec[0] == "error_handler:")  {
 			string s = "";
