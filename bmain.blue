@@ -130,6 +130,8 @@ class dict:
 	function count member:
 		set res=ishave this:member
 		return res
+	function keys:
+		return membersof this
 
 function typeof obj:
 	set o=object obj

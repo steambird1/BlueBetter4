@@ -447,7 +447,7 @@ private:
 		for (auto &i : obj) {
 			// Only lookup for one
 			size_t dpos = i.first.find_first_of('.');
-			if (dpos > i.first.length()) continue;
+			if (dpos >= i.first.length()) continue;
 			string keyname = i.first.substr(dpos);
 			if (countOf(i.first, '.') == 1) {
 				bool isshown = true;
@@ -464,7 +464,7 @@ private:
 					}
 				}
 				if (force_show || isshown) {
-					result.push_back(keyname);
+					result.push_back(keyname.substr(1));
 				}
 			}
 		}
