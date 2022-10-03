@@ -2,6 +2,10 @@ class exception:
 	init:
 		# Do nothing, reserved class
 
+class object:
+	init:
+		# Empty class, do nothing
+
 class list:
 	hidden length
 	init:
