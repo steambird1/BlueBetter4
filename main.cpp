@@ -876,9 +876,6 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 // The interpretion of '\\', '"' will be finished here! Check the code.
 intValue calcute(string expr, varmap &vm) {
 	if (expr.length() == 0) return null;
-	if (beginWith(expr, vm.mymagic)) {
-		raise_gv_ce("Warning: Calcute of object without serial");
-	}
 	stack<char> op;
 	stack<string> val;
 	string operand = "";
@@ -894,7 +891,7 @@ intValue calcute(string expr, varmap &vm) {
 				// Here should be operator previously.
 				int t = 1;
 				while (int(i)-t>=0 && expr[i - t] == '(') t--;
-				if (i == 0 || priority(expr[i - t]) >= 0) {
+				if ((i == 0 || priority(expr[i - t]) >= 0) && (!ignore)) {
 					op.push('(');
 				}
 				else {
@@ -2120,7 +2117,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test3.blue";
+	string code = "", file = "test1.blue";
 	in_debug = true;
 	no_lib = false;
 
