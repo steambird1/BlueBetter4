@@ -134,6 +134,9 @@ class dict:
 	function count member:
 		set res=ishave this:member
 		return res
+	function length:
+		set t=object membersof this
+		return t.length
 	function keys:
 		return membersof this
 
@@ -241,3 +244,31 @@ function split origin delimit maxsplit:
 		run res.append tmp
 	set s=serial res
 	return s
+
+function sin x:
+	call res=_maths_sin,x
+	return res
+
+function cos x:
+	call res=_maths_cos,x
+	return res
+
+function tan x:
+	call res=_maths_tan,x
+	return res
+
+function atan x:
+	call res=_maths_atan,x
+	return res
+
+function asin x:
+	call res=_maths_asin,x
+	return res
+
+function acos x:
+	call res=_maths_acos,x
+	return res
+
+function sqrt x:
+	call res=_maths_sqrt,x
+	return res

@@ -13,7 +13,8 @@
 #include <cstdio>
 #include <set>
 #include <windows.h>
-#include <time.h>
+#include <ctime>
+#include <cmath>
 using namespace std;
 
 // To symbol if it's next statement, not next progress
@@ -89,6 +90,7 @@ vector<string> split(string str, char delimiter = '\n', int maxsplit = -1, char 
 	// Manually breaks
 	bool qmode = false, dmode = false;
 	vector<string> result;
+	if (maxsplit > 0) result.reserve(maxsplit);
 	string strtmp = "";
 	for (size_t i = 0; i < str.length(); i++) {
 		char &cs = str[i];
@@ -1925,6 +1927,17 @@ intValue preRun(string code, map<string, string> required_global = {}, map<strin
 	intcalls["eval"] = [](string args, varmap &env) -> intValue {
 		return run(calcute(args, env).str, env, "Internal eval()");
 	};
+	// It is better to add more functions by intcalls, not set
+#define math_extension(funame) intcalls["_maths_" #funame] = [](string args, varmap &env) -> intValue { \
+		return intValue(funame(calcute(args, env).numeric)); \
+	}
+	math_extension(sin);
+	math_extension(cos);
+	math_extension(tan);
+	math_extension(asin);
+	math_extension(acos);
+	math_extension(atan);
+	math_extension(sqrt);
 	for (auto &i : required_callers) {
 		intcalls[i.first] = i.second;
 	}
