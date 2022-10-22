@@ -483,7 +483,8 @@ private:
 			if (beginWith(j.first, name + ".")) {
 				//vector<string> spl = split(j.first, '.', 1);
 				vector<string> spl = { "","" };
-				size_t fl = j.first.find_first_of('.');
+				size_t fl = j.first.find('.', j.first.find(name) + name.length());
+				if (fl == string::npos) continue;
 				spl[0] = j.first.substr(0, fl);
 				if (spl[0] != name) continue;
 				spl[1] = j.first.substr(fl + 1);
@@ -2145,7 +2146,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test1.blue";
+	string code = "", file = "test4.blue";
 	in_debug = true;
 	no_lib = false;
 
@@ -2161,7 +2162,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.10a\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.10b\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
