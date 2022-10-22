@@ -1890,6 +1890,7 @@ intValue run(string code, varmap &myenv, string fname) {
 }
 
 string env_name;	// Directory of current file.
+const set<char> to_trim = {' ', '\n', '\r', -1};
 
 intValue preRun(string code, map<string, string> required_global = {}, map<string, bcaller> required_callers = {}) {
 	// Should prepare functions for it.
@@ -1945,6 +1946,13 @@ intValue preRun(string code, map<string, string> required_global = {}, map<strin
 	math_extension(acos);
 	math_extension(atan);
 	math_extension(sqrt);
+	intcalls["_trim"] = [](string args, varmap &env) -> intValue {
+		string s = calcute(args, env).str;
+		while (s.length() && to_trim.count(s[s.length() - 1])) s.pop_back();
+		size_t spl;
+		for (spl = 0; spl < s.length(); spl++) if (!to_trim.count(s[spl])) break;
+		return intValue(s.substr(spl));
+	};
 	for (auto &i : required_callers) {
 		intcalls[i.first] = i.second;
 	}
@@ -2153,7 +2161,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.10\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.10a\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
