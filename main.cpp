@@ -1131,7 +1131,7 @@ void generateClass(string variable, string classname, varmap &myenv, bool run_in
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv, string fname) {
-	vector<string> codestream = split(code);
+	vector<string> codestream = split(code, '\n', -1, '\"', '\\', true);;
 	// Process codestream before run
 	for (auto &cep : codestream) {
 		while (cep.length() && haveContent(cep) && cep[cep.length() - 1] == '\t') cep.pop_back();
@@ -1979,7 +1979,7 @@ intValue preRun(string code, map<string, string> required_global = {}, map<strin
 	fclose(f);
 	// End
 
-	vector<string> sc = split(code);
+	vector<string> sc = split(code, '\n', -1, '\"', '\\', true);
 	codestream.insert(codestream.end()-1,sc.begin(),sc.end());
 	string curclass = "";					// Will append '.'
 	string curfun = "", cfname = "", cfargs = "";
