@@ -762,7 +762,7 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 			string s = vm[spl[0]].str;
 			if (vm[spl[0]].isNull || s.length() == 0) {
 				raise_gv_ce(string("Warning: Call of null function ") + spl[0]);
-			}	// Modified until here.
+			}
 			__spec++;
 			auto r = run(s, nvm, spl[0]);
 			__spec--;
@@ -772,7 +772,7 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 			return r;
 		}
 		else {
-			auto r = getValue(vm[spl[0]], vm);
+			auto r = vm[spl[0]];
 			if (r.isNumeric && neg < 0) {
 				r = intValue(-r.numeric);
 			}
@@ -820,7 +820,7 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 		break;
 	case ':':
 		// As for this, 'first' should be direct var-name
-		return getValue(vm[first.str + "." + second.str], vm);
+		return vm[first.str + "." + second.str];
 		break;
 	case '#':
 		// To get a position for string, or power for integer.
@@ -1159,10 +1159,16 @@ void generateClass(string variable, string classname, varmap &myenv, bool run_in
 		vm.set_this(&myenv, variable);
 		__spec++;
 		string cini = classname + ".__init__";
-		run(myenv[cini], vm, cini);
+		run(myenv[cini].str, vm, cini);
 		__spec--;
 	}
 }
+// Modified until here. -- Code must be reviewed:
+/*
+1. Incorrect use of getValue() and calcute() -- shouldn't be like getValue(varmap[...].str, ...) if the value has been found
+2. Unexpected NULL (with value set, .isNull = 1)
+...
+*/
 
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
