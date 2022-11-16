@@ -133,10 +133,24 @@ string unformatting(string origin) {
 struct intValue {
 	// To be considered:
 	// When these values are set, 'isNull' should NOT be true anymore.
+
+	// DO NOT WRITE THEM DIRECTLY!
 	double								numeric;
 	string								str;
 	bool								isNull = false;
 	bool								isNumeric = false;
+
+	void set_numeric(double value) {
+		this->numeric = value;
+		this->isNull = false;
+		this->isNumeric = true;
+	}
+
+	void set_str(string value) {
+		this->str = value;
+		this->isNull = false;
+		this->isNumeric = true;
+	}
 
 	intValue() {
 		isNull = true;
@@ -742,11 +756,13 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 				}
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
-			if (set_no_this) nvm["__is_sharing__"].numeric = 1;
-			string s = vm[spl[0]];
-			if (s == "null" || s.length() == 0) {
-				raise_gv_ce(string("Warning: Call of null function ") + spl[0]);
+			if (set_no_this) {
+				nvm["__is_sharing__"].set_numeric(1);
 			}
+			string s = vm[spl[0]].str;
+			if (vm[spl[0]].isNull || s.length() == 0) {
+				raise_gv_ce(string("Warning: Call of null function ") + spl[0]);
+			}	// Modified until here.
 			__spec++;
 			auto r = run(s, nvm, spl[0]);
 			__spec--;
