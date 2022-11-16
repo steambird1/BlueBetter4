@@ -131,6 +131,8 @@ string unformatting(string origin) {
 }
 
 struct intValue {
+	// To be considered:
+	// When these values are set, 'isNull' should NOT be true anymore.
 	double								numeric;
 	string								str;
 	bool								isNull = false;
@@ -212,6 +214,7 @@ __init__		For a class definition, showing its initalizing function.
 __type__		For a class object, showing its kind.
 __inherits__	For a class object, showing its inherited class (split using ','.)
 __hidden__		For a class definition, showing if this value will be hidden during get_member (if 'forceShow' is not given).
+	ALL THINGS ABOVE WILL BECOME A STRING
 
 Extras:
 __must_inherit__		For a class objct, 1 if it must be inherited.
@@ -220,11 +223,19 @@ __no_inherit__			For a class object, 1 if it mustn't be inherited.
 __shared__				For a class object, 1 if object can't create from the class (shared class).
 	(This feature will be inherited!)
 	For a function object, 1 if this function can't use "this" but can be called directly by class name.
+	ALL THINGS ABOVE WILL BECOME A NUMERIC
 
 In environment:
 __error_handler__			(User define) processes error handler
+	[Will be used as a STRING]
 __is_sharing__				(User define) symbol if is calling shared thing.
 	(If __is_sharing__ = 1, call of "this" will fail.)
+	[Will be used as a NUMERIC]
+
+Therefore, the result of serial() should be considered!
+Functions will become STRING as well!
+
+The "null" inside should be seen as 'null' (which has .isNull = true).
 
 */
 // Specify what will not be copied.
@@ -234,14 +245,17 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
  class varmap {
 	public:
 		
-		typedef vector<map<string,string> >::reverse_iterator			vit;
-		typedef map<string, string>::iterator							mit;
+		using value_type = intValue;
+		using single_mapper = map<string, value_type>;
+
+		typedef vector<single_mapper>::reverse_iterator			vit;
+		typedef single_mapper::iterator							mit;
 		
 		varmap() {
 
 		}
 		void push() {
-			vs.push_back(map<string,string>());
+			vs.push_back(single_mapper());
 		}
 		void pop() {
 			if (vs.size()) vs.pop_back();
@@ -266,7 +280,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			}
 		}
 		// If return object serial, DON'T MODIFY IT !
-		string& operator[](string key) {
+		value_type& operator[](string key) {
 #pragma region Debug Purpose
 			//cout << "Require key: " << key << endl;
 #pragma endregion
@@ -276,7 +290,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			}
 			// Find where it is
 			bool is_sharing = false;
-			if (key != "__is_sharing__" && this->operator[]("__is_sharing__") == "1") {
+			if (key != "__is_sharing__" && this->operator[]("__is_sharing__").numeric == 1) {
 				is_sharing = true;
 			}
 			if (key == "this") {
@@ -298,7 +312,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			else {
 				for (vit i = vs.rbegin(); i != vs.rend(); i++) {
 					if (i->count(key)) {
-						if (unserial.count((*i)[key + ".__type__"])) {
+						if (unserial.count((*i)[key + ".__type__"].str)) {
 							return ((*i))[key];
 						}
 						else {
@@ -308,7 +322,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 				}
 				
 				if (glob_vs.count(key)) {
-					if (unserial.count(glob_vs[key + ".__type__"])) {
+					if (unserial.count(glob_vs[key + ".__type__"].str)) {
 						return glob_vs[key];
 					}
 					else {
@@ -320,23 +334,23 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 					vector<string> la = split(key, '.', 1);
 					for (vit i = vs.rbegin(); i != vs.rend(); i++) {
 						if (i->count(la[0])) {
-							(*i)[key] = "null";
+							(*i)[key] = null;
 							return (*i)[key];
 						}
 					}
 					if (glob_vs.count(la[0])) {
-						glob_vs[key] = "null";
+						glob_vs[key] = null;
 						return glob_vs[key];
 					}
 				}
 				else {
-					if (!vs[vs.size() - 1].count(key)) vs[vs.size() - 1][key] = "null";
+					if (!vs[vs.size() - 1].count(key)) vs[vs.size() - 1][key] = null;
 				}
 				return vs[vs.size() - 1][key];
 			}
 			
 		}
-		string serial(string name) {
+		intValue serial(string name) {
 			for (vit i = vs.rbegin(); i != vs.rend(); i++) {
 				if (i->count(name)) {
 					return serial_from(*i, name);
@@ -369,7 +383,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 				if (itemspl.size() < 2) itemspl.push_back("null");
 				(*this)[name + itemspl[0]] = itemspl[1];
 			}
-			(*this)[name] = "null";
+			(*this)[name] = null;
 		}
 		void tree_clean(string name) {
 			if (name == "this") {
@@ -385,7 +399,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 				// Clean in my tree.
 				for (auto i = vs.rbegin(); i != vs.rend(); i++) {
 					if (i->count(name)) {
-						(*i)[name] = "null";
+						(*i)[name] = null;
 						vector<string> to_delete;
 						for (auto &j : (*i)) {
 							if (beginWith(j.first, name + ".")) {
@@ -404,26 +418,32 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			glob_vs[key] = value;
 		}
 		void declare(string key) {
-			vs[vs.size() - 1][key] = "null";
+			vs[vs.size() - 1][key] = null;
 		}
 		void set_this(varmap *source, string name) {
 			this_name = name;
 			this_source = source;
 		}
 		void dump() {
+			specialout();
 			cout << "*** VARMAP DUMP ***" << endl;
 			cout << "this pointer: " << this_name << endl << "partial:" << endl;
 			for (vit i = vs.rbegin(); i != vs.rend(); i++) {
 				for (mit j = i->begin(); j != i->end(); j++) {
-					cout << j->first << " = " << j->second << endl;
+					cout << j->first << " = ";
+					j->second.output();
+					cout << endl;
 				}
 				cout << endl;
 			}
 			cout << "global:" << endl;
 			for (mit i = glob_vs.begin(); i != glob_vs.end(); i++) {
-				cout << i->first << " = " << i->second << endl;
+				cout << i->first << " = ";
+				i->second.output();
+				cout << endl;
 			}
 			cout << "*** END OF DUMP ***" << endl;
+			endout();
 		}
 		static void copy_inherit(string from, string dest) {
 			while (from[from.length() - 1] == '\n') from.pop_back();
@@ -447,9 +467,9 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			// Where 'this' points. use '.'
 		const string mymagic = "__object$\n";
 private:
-	vector<string> get_member_from(map<string, string> &obj, string name, bool force_show = false) {
+	vector<string> get_member_from(single_mapper &obj, string name, bool force_show = false) {
 		vector<string> result;
-		string mytype = (*this)[name + ".__type__"];
+		string mytype = (*this)[name + ".__type__"].str;
 		if (unserial.count(mytype)) mytype = "";
 		for (auto &i : obj) {
 			// Only lookup for one
@@ -467,7 +487,7 @@ private:
 					}
 					if (isshown) {
 						string hiddener = mytype + keyname + ".__hidden__";
-						if ((*this)[hiddener] == "1") isshown = false;
+						if ((*this)[hiddener].numeric == 1) isshown = false;
 					}
 				}
 				if (force_show || isshown) {
@@ -477,7 +497,7 @@ private:
 		}
 		return result;
 	}
-	string serial_from(map<string, string> &obj, string name) {
+	intValue serial_from(single_mapper &obj, string name) {
 		string tmp = mymagic;
 		for (auto &j : obj) {
 			if (beginWith(j.first, name + ".")) {
@@ -488,19 +508,19 @@ private:
 				spl[0] = j.first.substr(0, fl);
 				if (spl[0] != name) continue;
 				spl[1] = j.first.substr(fl + 1);
-				tmp += string(".") + spl[1] + "=" + j.second + "\n";
+				tmp += string(".") + spl[1] + "=" + j.second.unformat() + "\n";
 			}
 		}
-		return intValue(tmp).unformat();
+		return intValue(tmp);
 	}
 	const set<string> unserial = { "", "function", "class", "null" };
 
-	vector<map<string, string> >										vs;
+	vector<map<string, value_type> >										vs;
 	// Save evalable thing, like "" for string
-		static map<string, string>										glob_vs;
+		static map<string, value_type>										glob_vs;
 };
 
-map<string, string> varmap::glob_vs;
+map<string, varmap::value_type> varmap::glob_vs;
 
 void raiseError(intValue raiseValue, varmap &myenv, string source_function, size_t source_line, double error_id, string error_desc) {
 	if (source_function == "__error_handler__") {
@@ -521,7 +541,7 @@ void raiseError(intValue raiseValue, varmap &myenv, string source_function, size
 	myenv.set_global("err.description", intValue(error_desc).unformat());
 	varmap emer_var;
 	emer_var.push();
-	run(myenv["__error_handler__"], emer_var, "__error_handler__");
+	run(myenv["__error_handler__"].str, emer_var, "__error_handler__");
 }
 
 class inheritance_disjoint {
@@ -614,7 +634,7 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 		//vector<string> dotspl = split(spl[0], '.', 1);
 		// Must find last actually.
 		if (spl.size() && spl[0].length() && spl[0][0] == '$') {
-			spl[0] = getValue(vm[spl[0].substr(1)], vm).str;
+			spl[0] = getValue(vm[spl[0].substr(1)].str, vm).str;
 		}
 		vector<string> dotspl = { "","" };
 		size_t fl = spl[0].find_last_of('.');
@@ -629,9 +649,9 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 		string set_this = "";
 		bool set_no_this = false, is_static = false;
 		bool class_obj = false;
-		if (dotspl.size() > 1 && vm[dotspl[0] + ".__type__"] != "null" && vm[dotspl[0] + ".__type__"] != "function") {
+		if (dotspl.size() > 1 && !vm[dotspl[0] + ".__type__"].isNull && vm[dotspl[0] + ".__type__"].str != "function") {
 			class_obj = true;
-			if (vm[dotspl[0] + ".__type__"] == "class" && (vm[dotspl[0] + ".__shared__"] == "1" || vm[spl[0] + ".__shared__"] == "1")) {
+			if (vm[dotspl[0] + ".__type__"].str == "class" && (vm[dotspl[0] + ".__shared__"].numeric == 1 || vm[spl[0] + ".__shared__"].numeric == 1)) {
 				// Do nothing!
 				set_no_this = true;
 				is_static = true;
@@ -650,16 +670,16 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 				header = dotspl[0];
 			}
 			else {
-				header = vm[dotspl[0] + ".__type__"];
+				header = vm[dotspl[0] + ".__type__"].str;
 			}
 			string tmp = header + "." + dotspl[1];
-			if (vm[tmp + ".__type__"] == "function") {
+			if (vm[tmp + ".__type__"].str == "function") {
 				is_func = true;
 				spl[0] = tmp;
 			}
 		}
 		else {
-			is_func = vm[spl[0] + ".__type__"] == "function";
+			is_func = vm[spl[0] + ".__type__"].str == "function";
 		}
 		if (is_func) {
 			// A function call.
@@ -670,9 +690,9 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 			if (spl[0].find('.') != string::npos && (!set_no_this)) {
 				vector<string> xspl = split(spl[0], '.');
 				nvm.set_this(&vm, xspl[0]);
-				xspl[0] = vm[spl[0] + ".__type__"];
+				xspl[0] = vm[spl[0] + ".__type__"].str;
 			}
-			string args = vm[spl[0] + ".__arg__"];
+			string args = vm[spl[0] + ".__arg__"].str;
 			if (args.length()) {
 				vector<string> argname = split(args, ' ');
 				vector<string> arg;
@@ -722,7 +742,7 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 				}
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
-			if (set_no_this) nvm["__is_sharing__"] = "1";
+			if (set_no_this) nvm["__is_sharing__"].numeric = 1;
 			string s = vm[spl[0]];
 			if (s == "null" || s.length() == 0) {
 				raise_gv_ce(string("Warning: Call of null function ") + spl[0]);
