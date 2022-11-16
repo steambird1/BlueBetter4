@@ -228,7 +228,6 @@ __init__		For a class definition, showing its initalizing function.
 __type__		For a class object, showing its kind.
 __inherits__	For a class object, showing its inherited class (split using ','.)
 __hidden__		For a class definition, showing if this value will be hidden during get_member (if 'forceShow' is not given).
-	ALL THINGS ABOVE WILL BECOME A STRING
 
 Extras:
 __must_inherit__		For a class objct, 1 if it must be inherited.
@@ -237,14 +236,13 @@ __no_inherit__			For a class object, 1 if it mustn't be inherited.
 __shared__				For a class object, 1 if object can't create from the class (shared class).
 	(This feature will be inherited!)
 	For a function object, 1 if this function can't use "this" but can be called directly by class name.
-	ALL THINGS ABOVE WILL BECOME A NUMERIC
 
 In environment:
 __error_handler__			(User define) processes error handler
-	[Will be used as a STRING]
 __is_sharing__				(User define) symbol if is calling shared thing.
 	(If __is_sharing__ = 1, call of "this" will fail.)
-	[Will be used as a NUMERIC]
+
+ALL THINGS ABOVE WILL BECOME A STRING
 
 Therefore, the result of serial() should be considered!
 Functions will become STRING as well!
@@ -304,7 +302,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			}
 			// Find where it is
 			bool is_sharing = false;
-			if (key != "__is_sharing__" && this->operator[]("__is_sharing__").numeric == 1) {
+			if (key != "__is_sharing__" && this->operator[]("__is_sharing__").str == "1") {
 				is_sharing = true;
 			}
 			if (key == "this") {
@@ -501,7 +499,7 @@ private:
 					}
 					if (isshown) {
 						string hiddener = mytype + keyname + ".__hidden__";
-						if ((*this)[hiddener].numeric == 1) isshown = false;
+						if ((*this)[hiddener].str == "1") isshown = false;
 					}
 				}
 				if (force_show || isshown) {
@@ -665,7 +663,7 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 		bool class_obj = false;
 		if (dotspl.size() > 1 && !vm[dotspl[0] + ".__type__"].isNull && vm[dotspl[0] + ".__type__"].str != "function") {
 			class_obj = true;
-			if (vm[dotspl[0] + ".__type__"].str == "class" && (vm[dotspl[0] + ".__shared__"].numeric == 1 || vm[spl[0] + ".__shared__"].numeric == 1)) {
+			if (vm[dotspl[0] + ".__type__"].str == "class" && (vm[dotspl[0] + ".__shared__"].str == "1" || vm[spl[0] + ".__shared__"].str == "1")) {
 				// Do nothing!
 				set_no_this = true;
 				is_static = true;
@@ -757,7 +755,7 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
 			if (set_no_this) {
-				nvm["__is_sharing__"].set_numeric(1);
+				nvm["__is_sharing__"].set_str("1");
 			}
 			string s = vm[spl[0]].str;
 			if (vm[spl[0]].isNull || s.length() == 0) {
@@ -1292,7 +1290,7 @@ intValue run(string code, varmap &myenv, string fname) {
 			}
 			if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "new ") {
 				vector<string> azer = split(codexec2[1], ' ');	// Classname is azer[1]
-				if (myenv[azer[1] + ".__must_inherit__"].numeric == 1 || myenv[azer[1] + ".__shared__"].numeric == 1) {
+				if (myenv[azer[1] + ".__must_inherit__"].str == "1" || myenv[azer[1] + ".__shared__"].str == "1") {
 					raise_ce(string("Warning: class ") + azer[1] + " is not allowed to create object.");
 				}
 				else {
@@ -1663,6 +1661,7 @@ intValue run(string code, varmap &myenv, string fname) {
 1. Incorrect use of getValue() and calcute() -- shouldn't be like getValue(varmap[...].str, ...) if the value has been found
 2. Unexpected NULL (with value set, .isNull = 1)
 3. Something like the setting of '__is_shared__', should be STRING, not NUMERIC that is mentioned before (Should be fixed later)
+4. Bad use of .unformat() (As it returns string)
 ...
 */
 
