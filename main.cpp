@@ -1163,17 +1163,11 @@ void generateClass(string variable, string classname, varmap &myenv, bool run_in
 		__spec--;
 	}
 }
-// Modified until here. -- Code must be reviewed:
-/*
-1. Incorrect use of getValue() and calcute() -- shouldn't be like getValue(varmap[...].str, ...) if the value has been found
-2. Unexpected NULL (with value set, .isNull = 1)
-...
-*/
 
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv, string fname) {
-	vector<string> codestream = split(code, '\n', -1, '\"', '\\', true);;
+	vector<string> codestream = split(code, '\n', -1, '\"', '\\', true);
 	// Process codestream before run
 	for (auto &cep : codestream) {
 		while (cep.length() && haveContent(cep) && cep[cep.length() - 1] == '\t') cep.pop_back();
@@ -1298,7 +1292,7 @@ intValue run(string code, varmap &myenv, string fname) {
 			}
 			if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "new ") {
 				vector<string> azer = split(codexec2[1], ' ');	// Classname is azer[1]
-				if (myenv[azer[1] + ".__must_inherit__"] == "1" || myenv[azer[1] + ".__shared__"] == "1") {
+				if (myenv[azer[1] + ".__must_inherit__"].numeric == 1 || myenv[azer[1] + ".__shared__"].numeric == 1) {
 					raise_ce(string("Warning: class ") + azer[1] + " is not allowed to create object.");
 				}
 				else {
@@ -1406,11 +1400,11 @@ intValue run(string code, varmap &myenv, string fname) {
 						}
 					}
 				}
-				if (myenv[codexec4[0] + ".__type__"] == "null" || myenv[codexec4[0] + ".__type__"] == "class") {
+				if (myenv[codexec4[0] + ".__type__"].isNull || myenv[codexec4[0] + ".__type__"].str == "class") {
 					myenv[codexec2[0]] = intValue(inh_map.is_same(codexec4[0], codexec4[1])).unformat();
 				}
 				else {
-					if (inh_map.is_same(myenv[codexec4[0] + ".__type__"], myenv[codexec4[1] + ".__type__"])) {
+					if (inh_map.is_same(myenv[codexec4[0] + ".__type__"].str, myenv[codexec4[1] + ".__type__"].str)) {
 						myenv[codexec2[0]] = intValue(1).unformat();
 					}
 					else {
@@ -1656,14 +1650,22 @@ intValue run(string code, varmap &myenv, string fname) {
 			vector<string> rangeobj = split(codexec2[1], '~');
 			intValue stepper = 1, current;
 			if (rangeobj.size() >= 3) stepper = calcute(rangeobj[2], myenv);
-			if (myenv[codexec2[0]] == "null") {
+			if (myenv[codexec2[0]].isNull) {
 				current = intValue(calcute(rangeobj[0], myenv).numeric);
 			}
 			else {
-				current = intValue(calcute(myenv[codexec2[0]], myenv).numeric + stepper.numeric);
+				current = intValue(myenv[codexec2[0]].numeric + stepper.numeric);
 			}
 			myenv[codexec2[0]] = current.unformat();
-			if (calcute(myenv[codexec2[0]], myenv).numeric == calcute(rangeobj[1], myenv).numeric) {
+			if (myenv[codexec2[0]].numeric == calcute(rangeobj[1], myenv).numeric) {
+				// Modified until here. -- Code must be reviewed:
+/*
+1. Incorrect use of getValue() and calcute() -- shouldn't be like getValue(varmap[...].str, ...) if the value has been found
+2. Unexpected NULL (with value set, .isNull = 1)
+3. Something like the setting of '__is_shared__', should be STRING, not NUMERIC that is mentioned before (Should be fixed later)
+...
+*/
+
 				// Jump where end-of-loop
 				myenv.tree_clean(codexec2[0]);
 				noroll = true; //  End of statements' life
