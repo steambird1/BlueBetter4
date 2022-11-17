@@ -140,6 +140,18 @@ struct intValue {
 	bool								isNull = false;
 	bool								isNumeric = false;
 
+	intValue negative() {
+		if (this->isNumeric) {
+			return intValue(-this->numeric);
+		}
+		else if (!this->isNull) {
+			return intValue(this->str);
+		}
+		else {
+			return null;
+		}
+	}
+
 	void set_numeric(double value) {
 		this->numeric = value;
 		this->isNull = false;
@@ -362,7 +374,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			}
 			
 		}
-		intValue serial(string name) {
+		value_type serial(string name) {
 			for (vit i = vs.rbegin(); i != vs.rend(); i++) {
 				if (i->count(name)) {
 					return serial_from(*i, name);
@@ -373,7 +385,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			}
 			return mymagic;
 		}
-		vector<string> get_member(string name, bool force_show = false) {
+		vector<value_type> get_member(string name, bool force_show = false) {
 			for (vit i = vs.rbegin(); i != vs.rend(); i++) {
 				if (i->count(name)) {
 					return get_member_from(*i, name, force_show);
@@ -382,7 +394,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			if (glob_vs.count(name)) {
 				return get_member_from(glob_vs, name, force_show);
 			}
-			return vector<string>();
+			return vector<value_type>();
 		}
 		void deserial(string name, string serial) {
 			if (!beginWith(serial, mymagic)) {
@@ -393,7 +405,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			for (auto &i : lspl) {
 				vector<string> itemspl = split(i, '=', 1);
 				if (itemspl.size() < 2) itemspl.push_back("null");
-				(*this)[name + itemspl[0]] = itemspl[1];
+				(*this)[name + itemspl[0]] = getValue(itemspl[1], *this);
 			}
 			(*this)[name] = null;
 		}
@@ -426,8 +438,11 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 				}
 			}
 		}
-		static void set_global(string key, string value = "null") {
+		static void set_global(string key, value_type value) {
 			glob_vs[key] = value;
+		}
+		static void declare_global(string key) {
+			set_global(key, null);
 		}
 		void declare(string key) {
 			vs[vs.size() - 1][key] = null;
@@ -479,8 +494,8 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			// Where 'this' points. use '.'
 		const string mymagic = "__object$\n";
 private:
-	vector<string> get_member_from(single_mapper &obj, string name, bool force_show = false) {
-		vector<string> result;
+	vector<value_type> get_member_from(single_mapper &obj, string name, bool force_show = false) {
+		vector<value_type> result;
 		string mytype = (*this)[name + ".__type__"].str;
 		if (unserial.count(mytype)) mytype = "";
 		for (auto &i : obj) {
@@ -503,7 +518,7 @@ private:
 					}
 				}
 				if (force_show || isshown) {
-					result.push_back(keyname.substr(1));
+					result.push_back(intValue(keyname.substr(1)));
 				}
 			}
 		}
@@ -546,11 +561,11 @@ void raiseError(intValue raiseValue, varmap &myenv, string source_function, size
 		endout();
 		return;
 	}
-	myenv.set_global("err.value", raiseValue.unformat());
-	myenv.set_global("err.source", intValue(source_function).unformat());
-	myenv.set_global("err.line", intValue(source_line).unformat());
-	myenv.set_global("err.id", intValue(error_id).unformat());
-	myenv.set_global("err.description", intValue(error_desc).unformat());
+	myenv.set_global("err.value", raiseValue);
+	myenv.set_global("err.source", intValue(source_function));
+	myenv.set_global("err.line", intValue(source_line));
+	myenv.set_global("err.id", intValue(error_id));
+	myenv.set_global("err.description", intValue(error_desc));
 	varmap emer_var;
 	emer_var.push();
 	run(myenv["__error_handler__"].str, emer_var, "__error_handler__");
@@ -750,7 +765,7 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 					return null;
 				}
 				for (size_t i = 0; i < arg.size(); i++) {
-					nvm[argname[i]] = (calcute(arg[i], vm)).unformat();
+					nvm[argname[i]] = calcute(arg[i], vm);
 				}
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
@@ -782,10 +797,10 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
 
 int priority(char op) {
 	switch (op) {
-	case ')':
+	case ')': case ':':	// Must make sure ':' has the most priority
 		return 6;
 		break;
-	case ':': case '#':
+	case '#':
 		return 5;
 		break;
 	case '&': case '|':
@@ -916,19 +931,47 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 	}
 }
 
-// The interpretion of '\\', '"' will be finished here! Check the code.
+// Code must be checked
 intValue calcute(string expr, varmap &vm) {
 	if (expr.length() == 0) return null;
 	stack<char> op;
-	stack<string> val;
+	stack<intValue> val;
 	string operand = "";
 	bool cur_neg = false, qmode = false, dmode = false;
-	int ignore = 0;
+	int ignore = 0, op_pr;
+
+	auto auto_push = [&]() {
+		if (cur_neg) {
+			val.push(getValue(operand, vm).negative());
+		}
+		else {
+			val.push(getValue(operand, vm));
+		}
+	};
+
+	// my_pr not provided (-1): Keep on poping
+	auto auto_pop = [&](int my_pr = -1) {
+		op_pr = -2;
+		while ((!op.empty()) && (op_pr = priority(op.top())) > my_pr) {
+			intValue v1, v2;
+			char mc = op.top();
+			op.pop();
+			v1 = val.top();
+
+
+			val.pop();
+			v2 = val.top();
+			val.pop();
+			intValue pres = primary_calcute(v2, mc, v1, vm);
+			val.push(pres);
+		}
+	};
+
 	for (size_t i = 0; i < expr.length(); i++) {
 		if (expr[i] == '"' && (!dmode)) qmode = !qmode;
 		if (expr[i] == '\\' && (!dmode)) dmode = true;
 		else dmode = false;
-		int my_pr = priority(expr[i]), op_pr = -2;
+		int my_pr = priority(expr[i]);
 		if (my_pr >= 0 && (!qmode) && (!dmode)) {
 			if (expr[i] == '(') {
 				// Here should be operator previously.
@@ -953,19 +996,14 @@ intValue calcute(string expr, varmap &vm) {
 						char mc = op.top();
 						op.pop();
 
-						v1 = getValue(val.top(), vm);
+						v1 = val.top();
 
 						val.pop();
-						if (mc == ':') {
-							v2 = intValue(val.top());
-						}
-						else {
-							v2 = getValue(val.top(), vm);
-						}
+						v2 = val.top();
 
 						val.pop();
 						intValue pres = primary_calcute(v2, mc, v1, vm);
-						val.push(pres.unformat());
+						val.push(pres);
 					}
 					op.pop();	// '('
 					operand = "";
@@ -989,27 +1027,21 @@ intValue calcute(string expr, varmap &vm) {
 				}
 				else {
 					if (operand.length()) {
-						val.push(string(cur_neg ? "-" : "") + operand);
-						cur_neg = false;
-					}
-					while ((!op.empty()) && (op_pr = priority(op.top())) > my_pr) {
-						intValue v1, v2;
-						char mc = op.top();
-						op.pop();
-						v1 = getValue(val.top(), vm);
-
-
-						val.pop();
-						if (mc == ':') {
-							v2 = intValue(val.top());
+						//val.push(string(cur_neg ? "-" : "") + operand);
+						if (expr[i] == ':') {
+							// Must be a raw, existing, indexable thing.
+							if (!vm.count(operand)) {
+								raise_gv_ce(string("Error: not a variable: ") + operand);
+								return null;	// Bad expression!
+							}
+							val.push(intValue(operand));
 						}
 						else {
-							v2 = getValue(val.top(), vm);
+							auto_push();
 						}
-						val.pop();
-						intValue pres = primary_calcute(v2, mc, v1, vm);
-						val.push(pres.unformat());
+						cur_neg = false;
 					}
+					auto_pop(my_pr);
 					op.push(expr[i]);
 					operand = "";
 				}
@@ -1024,25 +1056,11 @@ intValue calcute(string expr, varmap &vm) {
 		}
 	}
 	if (operand.length()) {
-		val.push(string(cur_neg ? "-" : "") + operand);
+		auto_push();
 		cur_neg = false;
 	}
-	while (!op.empty()) {
-		intValue v1 = getValue(val.top(), vm), v2;
-		val.pop();
-		char mc = op.top();
-		op.pop();
-		if (mc == ':') {
-			v2 = intValue(val.top());
-		}
-		else {
-			v2 = getValue(val.top(), vm);
-		}
-		val.pop();
-		intValue pres = primary_calcute(v2, mc, v1, vm);
-		val.push(pres.unformat());
-	}
-	return getValue(val.top(), vm);
+	auto_pop();
+	return val.top();
 }
 
 #define parameter_check(req) do {if (codexec.size() < req) {raise_ce("Error: required parameter not given") ;return null;}} while (false)
@@ -1149,7 +1167,7 @@ size_t getLength(int fid) {
 }
 
 void generateClass(string variable, string classname, varmap &myenv, bool run_init = true) {
-	myenv[variable] = "null";
+	myenv[variable] = null;
 	myenv[variable + ".__type__"] = classname;
 	if (run_init) {
 		varmap vm;
@@ -1315,7 +1333,7 @@ intValue run(string code, varmap &myenv, string fname) {
 				if (codexec3[1].find(':') != string::npos) {
 					codexec3[1] = curexp(codexec3[1], myenv);
 				}
-				myenv[codexec2[0]] = intValue(int(myenv.count(codexec3[1]))).unformat();
+				myenv[codexec2[0]] = intValue(int(myenv.count(codexec3[1])));
 			}
 			else if (codexec2[1] == "clear") {
 				myenv.tree_clean(codexec2[0]);
@@ -1324,64 +1342,64 @@ intValue run(string code, varmap &myenv, string fname) {
 			else if (codexec2[1] == "__input") {
 				string t;
 				getline(cin, t);
-				myenv[codexec2[0]] = intValue(t).unformat();
+				myenv[codexec2[0]] = intValue(t);
 			}
 			else if (beginWith(codexec2[1], "__int ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
 				parameter_check3(2, "Operator number");
-				myenv[codexec2[0]] = intValue(atof(calcute(codexec3[1], myenv).str.c_str())).unformat();
+				myenv[codexec2[0]] = intValue(atof(calcute(codexec3[1], myenv).str.c_str()));
 			}
 			else if (beginWith(codexec2[1], "__chr ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
 				parameter_check3(2, "Operator number");
 				char ch = char(int(calcute(codexec3[1], myenv).numeric));
-				myenv[codexec2[0]] = intValue(string({ ch })).unformat();
+				myenv[codexec2[0]] = intValue(string({ ch }));
 			}
 			else if (beginWith(codexec2[1], "__ord ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
 				parameter_check3(2, "Operator number");
 				intValue cv = calcute(codexec3[1], myenv);
 				if (cv.str.length()) {
-					myenv[codexec2[0]] = intValue(int(char((cv.str[0])))).unformat();
+					myenv[codexec2[0]] = intValue(int(char((cv.str[0]))));
 				}
 				else {
-					myenv[codexec2[0]] = intValue(-1).unformat();
+					myenv[codexec2[0]] = intValue(-1);
 				}
 				
 			}
 			else if (beginWith(codexec2[1], "__len")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
 				intValue rsz = calcute(codexec3[1], myenv);
-				myenv[codexec2[0]] = intValue(rsz.str.length()).unformat();
+				myenv[codexec2[0]] = intValue(rsz.str.length());
 			}
 			else if (beginWith(codexec2[1], "__intg ")) {
 				vector<string> codexec3 = split(codexec2[1], ' ', 1);
 				intValue rsz = calcute(codexec3[1], myenv);
 				int res = int(rsz.numeric);
-				myenv[codexec2[0]] = intValue(res).unformat();
+				myenv[codexec2[0]] = intValue(res);
 			}
 			else if (codexec2[1] == "__input_int") {
 				//myenv[codexec2[0]]
 				double dv;
 				scanf("%lf", &dv);
-				myenv[codexec2[0]] = intValue(dv).unformat();
+				myenv[codexec2[0]] = intValue(dv);
 			}
 			else if (codexec2[1] == "__time") {
-				myenv[codexec2[0]] = intValue(time(NULL)).unformat();
+				myenv[codexec2[0]] = intValue(time(NULL));
 			}
 			else if (codexec2[1] == "__clock") {
-				myenv[codexec2[0]] = intValue(clock()).unformat();
+				myenv[codexec2[0]] = intValue(clock());
 			}
 			else if (codexec2[1] == "__random") {
-				myenv[codexec2[0]] = intValue(random()).unformat();
+				myenv[codexec2[0]] = intValue(random());
 			}
-			else if (beginWith(codexec2[1], "__typeof")) {
+			else if (beginWith(codexec2[1], "__typeof")) {	// Not necessary any longer
 			vector<string> codexec3 = split(codexec2[1], ' ', 1);
 			parameter_check3(2, "Operator number");
 			if (codexec3[1].find(':') != string::npos) {
 				codexec3[1] = curexp(codexec3[1], myenv);
 			}
-			myenv[codexec2[0]] = intValue(myenv[codexec3[1] + ".__type__"]).unformat();
+			myenv[codexec2[0]] = myenv[codexec3[1] + ".__type__"];
 			}
 			else if (beginWith(codexec2[1], "__inheritanceof")) {
 				// set a=inheritanceof b,c (a = 0 or 1)
@@ -1389,7 +1407,7 @@ intValue run(string code, varmap &myenv, string fname) {
 				parameter_check3(2, "Operator number");
 				vector<string> codexec4 = split(codexec3[1], ',', 1);
 				if (codexec4.size() < 2) {
-					myenv[codexec3[1]] = intValue(0).unformat();
+					myenv[codexec3[1]] = intValue(0);
 				}
 				else {
 					for (auto &i : codexec4) {
@@ -1399,14 +1417,14 @@ intValue run(string code, varmap &myenv, string fname) {
 					}
 				}
 				if (myenv[codexec4[0] + ".__type__"].isNull || myenv[codexec4[0] + ".__type__"].str == "class") {
-					myenv[codexec2[0]] = intValue(inh_map.is_same(codexec4[0], codexec4[1])).unformat();
+					myenv[codexec2[0]] = intValue(inh_map.is_same(codexec4[0], codexec4[1]));
 				}
 				else {
 					if (inh_map.is_same(myenv[codexec4[0] + ".__type__"].str, myenv[codexec4[1] + ".__type__"].str)) {
-						myenv[codexec2[0]] = intValue(1).unformat();
+						myenv[codexec2[0]] = intValue(1);
 					}
 					else {
-						myenv[codexec2[0]] = intValue(0).unformat();
+						myenv[codexec2[0]] = intValue(0);
 					}
 				}
 			}
@@ -1419,17 +1437,17 @@ intValue run(string code, varmap &myenv, string fname) {
 			auto result = myenv.get_member(codexec3[1]);
 			generateClass(codexec2[0], "list", myenv);
 			for (size_t i = 0; i < result.size(); i++) {
-				myenv[codexec2[0] + "." + to_string(i)] = intValue(result[i]).unformat();
+				myenv[codexec2[0] + "." + to_string(i)] = intValue(result[i]);
 			}
-			myenv[codexec2[0] + ".length"] = intValue(result.size()).unformat();
+			myenv[codexec2[0] + ".length"] = intValue(result.size());
 }
 #pragma endregion
 			else {
-				myenv[codexec2[0]] = calcute(codexec2[1], myenv).unformat();
+				myenv[codexec2[0]] = calcute(codexec2[1], myenv);
 			}
 			
 		}
-		else if (codexec[0] == "global") {
+		else if (codexec[0] == "global") {	// Todo: add 'new' , 'object', 'serial', ... After varmap is changed
 		parameter_check(2);
 		vector<string> codexec2 = split(codexec[1], '=', 1);
 		parameter_check2(2, "set");
@@ -1440,7 +1458,7 @@ intValue run(string code, varmap &myenv, string fname) {
 		else if (codexec2[0].find(":") != string::npos) {
 			codexec2[0] = curexp(codexec2[0], myenv);
 		}
-		myenv.set_global(codexec2[0], calcute(codexec2[1], myenv).unformat());
+		myenv.set_global(codexec2[0], calcute(codexec2[1], myenv));
 		}
 		else if (codexec[0] == "if" || codexec[0] == "elif") {
 			parameter_check(2);
@@ -1654,17 +1672,8 @@ intValue run(string code, varmap &myenv, string fname) {
 			else {
 				current = intValue(myenv[codexec2[0]].numeric + stepper.numeric);
 			}
-			myenv[codexec2[0]] = current.unformat();
+			myenv[codexec2[0]] = current;
 			if (myenv[codexec2[0]].numeric == calcute(rangeobj[1], myenv).numeric) {
-				// Modified until here. -- Code must be reviewed:
-/*
-1. Incorrect use of getValue() and calcute() -- shouldn't be like getValue(varmap[...].str, ...) if the value has been found
-2. Unexpected NULL (with value set, .isNull = 1)
-3. Something like the setting of '__is_shared__', should be STRING, not NUMERIC that is mentioned before (Should be fixed later)
-4. Bad use of .unformat() (As it returns string)
-...
-*/
-
 				// Jump where end-of-loop
 				myenv.tree_clean(codexec2[0]);
 				noroll = true; //  End of statements' life
@@ -1708,7 +1717,7 @@ intValue run(string code, varmap &myenv, string fname) {
 				cout << errno << endl;
 			}
 			else {
-				cout << myenv.serial(codexec[1]) << endl;
+				cout << myenv.serial(codexec[1]).str << endl;
 			}
 			
 		}
@@ -1760,7 +1769,7 @@ intValue run(string code, varmap &myenv, string fname) {
 					if (codexec3[0].find(":") != string::npos) {
 						codexec3[0] = curexp(codexec3[0], myenv);
 					}
-					myenv[codexec3[0]] = intValue(n).unformat();
+					myenv[codexec3[0]] = intValue(n);
 					intValue ca = calcute(codexec4[0], myenv);
 					string fn = ca.str;
 					string op = calcute(codexec4[1], myenv).str;
@@ -1783,7 +1792,7 @@ intValue run(string code, varmap &myenv, string fname) {
 						if (codexec3[0].find(":") != string::npos) {
 							codexec3[0] = curexp(codexec3[0], myenv);
 						}
-						myenv[codexec3[0]] = intValue(res).unformat();
+						myenv[codexec3[0]] = intValue(res);
 					}
 					else {
 						raise_ce("Incorrect file: " + to_string(fid));
@@ -1798,10 +1807,10 @@ intValue run(string code, varmap &myenv, string fname) {
 					int fid = calcute(codexec3[1], myenv).numeric;
 					bool rs = files.count(fid) ? (!feof(files[fid])) : 0;
 					if (files.count(fid) && rs) {
-						myenv[codexec3[0]] = intValue(1).unformat();
+						myenv[codexec3[0]] = intValue(1);
 					}
 					else {
-						myenv[codexec3[0]] = intValue(0).unformat();
+						myenv[codexec3[0]] = intValue(0);
 					}
 				}
 				else if (op == "len") {
@@ -1810,7 +1819,7 @@ intValue run(string code, varmap &myenv, string fname) {
 					int fid = calcute(codexec3[1], myenv).numeric;
 					bool rs = files.count(fid) ? feof(files[fid]) : 0;
 					if (files.count(fid) && !rs) {
-						myenv[codexec3[0]] = intValue(getLength(fid)).unformat();
+						myenv[codexec3[0]] = intValue(getLength(fid));
 					}
 					else {
 						raise_ce("Incorrect file: " + to_string(fid));
@@ -1831,9 +1840,9 @@ intValue run(string code, varmap &myenv, string fname) {
 						string &cn = codexec3[0];
 						//myenv[cn + ".__type__"] = "list";
 						generateClass(cn, "list", myenv, false);	// Accerlation
-						myenv[cn + ".length"] = intValue(len).unformat();
+						myenv[cn + ".length"] = intValue(len);
 						for (size_t i = 0; i < len; i++) {
-							myenv[cn + "." + to_string(i)] = intValue(int(buf[i])).unformat();
+							myenv[cn + "." + to_string(i)] = intValue(int(buf[i]));
 						}
 						delete[] buf;
 						//... For list
@@ -1853,11 +1862,11 @@ intValue run(string code, varmap &myenv, string fname) {
 							codexec4[1] = curexp(codexec4[1], myenv);
 						}
 						string &cn = codexec4[1];
-						if (inh_map.is_same(myenv[cn + ".__type__"], "list")) {
-							long64 clen = calcute(myenv[cn + ".length"], myenv).numeric;
+						if (inh_map.is_same(myenv[cn + ".__type__"].str, "list")) {
+							long64 clen = myenv[cn + ".length"].numeric;
 							char *buf = new char[clen + 2];
 							for (size_t i = 0; i < clen; i++) {
-								buf[i] = char((calcute(myenv[cn + "." + to_string(i)], myenv).numeric));
+								buf[i] = char((myenv[cn + "." + to_string(i)].numeric));
 							}
 							fwrite(buf, sizeof(char), clen, files[fid]);
 							delete[] buf;
@@ -1912,9 +1921,8 @@ intValue run(string code, varmap &myenv, string fname) {
 			else if (codexec2.size() == 2) {
 				result = intcalls[codexec2[0]](codexec2[1], myenv);
 			}
-			//myenv.set_global("__call_return", result.unformat());
 			if (save_target.length()) {
-				myenv[save_target] = result.unformat();
+				myenv[save_target] = result;
 			}
 		}
 		else {
@@ -1936,23 +1944,23 @@ intValue run(string code, varmap &myenv, string fname) {
 string env_name;	// Directory of current file.
 const set<char> to_trim = {' ', '\n', '\r', -1};
 
-intValue preRun(string code, map<string, string> required_global = {}, map<string, bcaller> required_callers = {}) {
+intValue preRun(string code, map<string, intValue> required_global = {}, map<string, bcaller> required_callers = {}) {
 	// Should prepare functions for it.
 	string fname = "Runtime preproessor";
 	varmap myenv;
 	myenv.push();
 	// Preset constants
 #pragma region Preset constants
-	myenv.set_global("LF", "\"\n\"");
-	myenv.set_global("TAB", "\"\t\"");
-	myenv.set_global("BKSP", "\"\b\"");
-	myenv.set_global("ALERT", "\"\a\"");
-	myenv.set_global("CLOCKS_PER_SEC", intValue(CLOCKS_PER_SEC).unformat());
-	myenv.set_global("true", "1");
-	myenv.set_global("false", "0");
-	myenv.set_global("err.__type__", "exception");			// Error information
-	myenv.set_global("__error_handler__", "call set_color,14\nprint err.description+LF+err.value+LF\ncall set_color,7");	// Preset error handler
-	myenv.set_global("__file__", env_name);
+	myenv.set_global("LF", intValue("\n"));
+	myenv.set_global("TAB", intValue("\t"));
+	myenv.set_global("BKSP", intValue("\b"));
+	myenv.set_global("ALERT", intValue("\a"));
+	myenv.set_global("CLOCKS_PER_SEC", intValue(CLOCKS_PER_SEC));
+	myenv.set_global("true", intValue(1));
+	myenv.set_global("false", intValue(0));
+	myenv.set_global("err.__type__", intValue("exception"));			// Error information
+	myenv.set_global("__error_handler__", intValue("call set_color,14\nprint err.description+LF+err.value+LF\ncall set_color,7"));	// Preset error handler
+	myenv.set_global("__file__", intValue(env_name));
 	// Insert more global variable
 	for (auto &i : required_global) {
 		myenv.set_global(i.first, i.second);
@@ -2041,8 +2049,8 @@ intValue preRun(string code, map<string, string> required_global = {}, map<strin
 		}
 		else {
 			if (cfname.length()) {
-				myenv.set_global(cfname, curfun);
-				myenv.set_global(cfname + ".__type__", "function");
+				myenv.set_global(cfname, intValue(curfun));
+				myenv.set_global(cfname + ".__type__", intValue("function"));
 				myenv.set_global(cfname + ".__arg__", cfargs);
 			}
 
@@ -2065,8 +2073,8 @@ intValue preRun(string code, map<string, string> required_global = {}, map<strin
 					parameter_check(2);
 					if (codexec[1][codexec[1].length() - 1] == '\n') codexec[1].pop_back();
 					codexec[1].pop_back();	// ':'
-					myenv.set_global(codexec[1] + ".__type__", "class");
-					myenv.set_global(codexec[1]);
+					myenv.set_global(codexec[1] + ".__type__", intValue("class"));
+					myenv.declare_global(codexec[1]);
 					curclass = codexec[1] + ".";
 				}
 				else if (codexec[0] == "import") {
@@ -2101,14 +2109,14 @@ intValue preRun(string code, map<string, string> required_global = {}, map<strin
 				}
 				else if (codexec[0] == "inherits") {
 					string &to_inherit = codexec[1];
-					if (myenv[to_inherit + ".__no_inherit__"] == "1") {
+					if (myenv[to_inherit + ".__no_inherit__"].str == "1") {
 						curlout();
 						cout << "Warning: No inheriting class " << to_inherit << endl;
 						endout();
 					}
 					else {
 						string curn = curclass.substr(0, curclass.length() - 1);
-						string old_inherits = myenv[curn + ".__inherits__"];
+						string old_inherits = myenv[curn + ".__inherits__"].str;
 						if (old_inherits == "null" || old_inherits == "") old_inherits = "";
 						else old_inherits += ",";
 						myenv.set_global(curn + ".__inherits__", old_inherits + to_inherit);
@@ -2121,28 +2129,28 @@ intValue preRun(string code, map<string, string> required_global = {}, map<strin
 					string &to_share = codexec[1];
 					while (to_share.length() && to_share[to_share.length() - 1] == '\n') to_share.pop_back();
 					if (to_share == "class") {
-						myenv.set_global(curclass + "__shared__", "1");
+						myenv.set_global(curclass + "__shared__", intValue("1"));
 					}
 					else {
 						string to_set = curclass + to_share;
 						if (!myenv.count(to_set)) {
-							myenv.set_global(to_set);
+							myenv.declare_global(to_set);
 						}
-						myenv.set_global(to_set + ".__shared__", "1");
+						myenv.set_global(to_set + ".__shared__", intValue("1"));
 					}
 				}
 				else if (codexec[0] == "must_inherit") {
-					myenv.set_global(curclass + "__must_inherit__", "1");
+					myenv.set_global(curclass + "__must_inherit__", intValue("1"));
 				}
 				else if (codexec[0] == "no_inherit") {
-					myenv.set_global(curclass + "__no_inherit__", "1");
+					myenv.set_global(curclass + "__no_inherit__", intValue("1"));
 				}
 				else if (codexec[0] == "hidden") {
 					parameter_check(2);
 					string &ce = codexec[1];
 					while (ce.length() && (ce[0] == '\n')) ce.erase(ce.begin());
 					while (ce.length() && (ce[ce.length() - 1] == '\n')) ce.pop_back();
-					myenv.set_global(curclass + ce + ".__hidden__", "1");
+					myenv.set_global(curclass + ce + ".__hidden__", intValue("1"));
 				}
 				break;
 			default:
@@ -2168,7 +2176,7 @@ intValue preRun(string code, map<string, string> required_global = {}, map<strin
 	}
 	if (cfname.length()) {
 		myenv.set_global(cfname, curfun);
-		myenv.set_global(cfname + ".__type__", "function");
+		myenv.set_global(cfname + ".__type__", intValue("function"));
 		myenv.set_global(cfname + ".__arg__", cfargs);
 	}
 	
@@ -2227,7 +2235,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	env_name = file;
-	map<string, string> reqs = { {"FILE_NAME", intValue(file).unformat()} };
+	map<string, intValue> reqs = { {"FILE_NAME", intValue(file)} };
 	map<string, bcaller> callers;	// Insert your requirements here
 
 	for (int i = 2; i < argc; i++) {
@@ -2239,7 +2247,7 @@ int main(int argc, char* argv[]) {
 			// String values only
 			vector<string> spl = split(opt, ':', 1);
 			vector<string> key_value = split(spl[1], '=', 1);
-			reqs[key_value[0]] = intValue(key_value[1]).unformat();
+			reqs[key_value[0]] = intValue(key_value[1]);
 			// test:
 			//specialout();
 			//cout << "Set: " << key_value[0] << "=" << reqs[key_value[0]] << endl;
