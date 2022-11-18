@@ -30,6 +30,7 @@ struct intValue;
 intValue run(string code, varmap &myenv, string fname);
 intValue calcute(string expr, varmap &vm);
 void raiseError(intValue raiseValue, varmap &myenv, string source_function = "Unknown source", size_t source_line = 0, double error_id = 0, string error_desc = "");
+intValue getValue(string single_expr, varmap &vm, bool save_quote = false);
 
 HANDLE stdouth;
 DWORD precolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN, nowcolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;
@@ -612,7 +613,7 @@ string formatting(string origin, char dinner = '\\', char ignorer = -1) {
 }
 
 // If save_quote, formatting() will not process anything inside quote.
-intValue getValue(string single_expr, varmap &vm, bool save_quote = false) {
+intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 	if (single_expr == "null" || single_expr == "") return null;
 	// Remove any '(' in front
 	while (single_expr.length() && single_expr[0] == '(') {
@@ -947,6 +948,7 @@ intValue calcute(string expr, varmap &vm) {
 		else {
 			val.push(getValue(operand, vm));
 		}
+		cur_neg = false;
 	};
 
 	// my_pr not provided (-1): Keep on poping
@@ -988,8 +990,7 @@ intValue calcute(string expr, varmap &vm) {
 			else if (expr[i] == ')') {
 				if (ignore <= 0) {
 					if (operand.length()) {
-						val.push(string(cur_neg ? "-" : "") + operand);
-						cur_neg = false;
+						auto_push();
 					}
 					while ((!op.empty()) && (op.top() != '(')) {
 						intValue v1, v2;
@@ -1027,7 +1028,6 @@ intValue calcute(string expr, varmap &vm) {
 				}
 				else {
 					if (operand.length()) {
-						//val.push(string(cur_neg ? "-" : "") + operand);
 						if (expr[i] == ':') {
 							// Must be a raw, existing, indexable thing.
 							if (!vm.count(operand)) {
@@ -2198,7 +2198,7 @@ int main(int argc, char* argv[]) {
 #pragma region Compiler Test Option
 #if _DEBUG
 	string code = "", file = "test4.blue";
-	in_debug = true;
+	in_debug = false;
 	no_lib = false;
 
 	if (code.length()) {
