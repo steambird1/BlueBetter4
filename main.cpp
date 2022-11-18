@@ -662,7 +662,7 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 		//vector<string> dotspl = split(spl[0], '.', 1);
 		// Must find last actually.
 		if (spl.size() && spl[0].length() && spl[0][0] == '$') {
-			spl[0] = getValue(vm[spl[0].substr(1)].str, vm).str;
+			spl[0] = vm[spl[0].substr(1)].str;
 		}
 		vector<string> dotspl = { "","" };
 		size_t fl = spl[0].find_last_of('.');
@@ -864,9 +864,15 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 		}
 		break;
 	case '%':
+		if (second.numeric == 0) {
+			return null;
+		}
 		return long64(first.numeric) % long64(second.numeric);
 		break;
 	case '/':
+		if (second.numeric == 0) {
+			return null;
+		}
 		return first.numeric / second.numeric;
 		break;
 	case '+':
