@@ -1035,11 +1035,6 @@ intValue calcute(string expr, varmap &vm) {
 				else {
 					if (operand.length()) {
 						if (expr[i] == ':') {
-							// Must be a raw, existing, indexable thing.
-							if (!vm.count(operand)) {
-								raise_gv_ce(string("Error: not a variable: ") + operand);
-								return null;	// Bad expression!
-							}
 							val.push(intValue(operand));
 						}
 						else {
