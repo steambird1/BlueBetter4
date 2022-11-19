@@ -438,10 +438,10 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			(*this)[name] = null;
 		}
 		void tree_clean(string name) {
-			vector<string> spls = split(name, '.', 1);
-			string dm = "";
-			if (spls.size() >= 2) dm = spls[1];
-			if (have_referrer(spls[0])) this->clean_referrer(spls[0]);
+			if (have_referrer(name)) {
+				this->clean_referrer(name);
+				return;
+			}
 				// Clean in my tree.
 				for (auto i = vs.rbegin(); i != vs.rend(); i++) {
 					if (i->count(name)) {
