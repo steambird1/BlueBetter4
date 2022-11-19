@@ -290,8 +290,10 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 				return this->source->operator[](origin_name + expand);
 			}
 
-			bool count(string dot_member) {
-				return this->source->count(origin_name + "." + dot_member);
+			bool count(string dot_member = "") {
+				string expand = "";
+				if (dot_member.length()) expand = string(".") + dot_member;
+				return this->source->count(origin_name + expand);
 			}
 
 			string origin_name;
@@ -796,6 +798,10 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 						string rname = arg[i].substr(1);
 						if (vm.have_referrer(rname)) {
 							nvm.transform_referrer_from(argname[i], vm, rname);
+							continue;
+						}
+						else if (vm.count(rname)) {
+							nvm.set_referrer(argname[i], rname, &vm);
 							continue;
 						}
 						else {
