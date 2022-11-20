@@ -324,9 +324,27 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 				if (glob_vs.count(key)) return true;
 				return false;
 		}
+		// Before call THIS check it
+		void set_referrer(string here_name, referrer ref) {
+			// As a template, replace others ...
+			size_t last_pos = here_name.find_last_of('.');
+			vector<string> spls = { here_name.substr(0, last_pos), "" };
+			if (last_pos < string::npos) spls[1] = here_name.substr(last_pos + 1);
+			string dm = "";
+			if (spls.size() >= 2) dm = spls[1];
+			if (have_referrer(spls[0]) && dm.length()) {
+				// Set to its actual referrer
+				auto &re = this->ref[spls[0]];
+				re.source->set_referrer(re.origin_name + "." + spls[1], ref);
+			}
+			else {
+				this->ref[here_name] = ref;
+			}
+		}
 		void set_referrer(string here_name, string origin_name, varmap *origin) {
 			if (here_name == "" || origin_name == "" || origin == nullptr) return;
-			ref[here_name] = referrer(origin_name, origin);
+			//ref[here_name] = referrer(origin_name, origin);
+			set_referrer(here_name, referrer(origin_name, origin));
 		}
 		bool have_referrer(string here_name) {
 			return ref.count(here_name);
@@ -357,12 +375,14 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			}
 
 			// Search for referrer
-			vector<string> spl = split(key, '.', 1);
-			string dm = "";
-			if (spl.size() >= 2) dm = spl[1];
-			if (have_referrer(spl[0])) {
-				return this->ref[spl[0]].getValue(dm);
+			auto gd = get_dot(key);
+			if (have_referrer(gd.first)) {
+				return this->ref[gd.first].getValue(gd.second);
 			}
+			else if (have_referrer(key)) {
+				return this->ref[key].getValue();
+			}// Or for whole directly.
+			
 			
 				for (vit i = vs.rbegin(); i != vs.rend(); i++) {
 					if (i->count(key)) {
@@ -444,6 +464,19 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			}
 			(*this)[name] = null;
 		}
+		void global_deserial(string name, string serial) {
+			if (!beginWith(serial, mymagic)) {
+				return;
+			}
+			serial = serial.substr(mymagic.length());
+			vector<string> lspl = split(serial, '\n', -1, '\"', '\\', true);
+			for (auto &i : lspl) {
+				vector<string> itemspl = split(i, '=', 1);
+				if (itemspl.size() < 2) itemspl.push_back("null");
+				this->set_global(name + itemspl[0], getValue(itemspl[1], *this));
+			}
+			this->set_global(name, null);
+		}
 		void tree_clean(string name) {
 			if (have_referrer(name)) {
 				this->clean_referrer(name);
@@ -469,7 +502,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 		void transform_referrer_from(string here_name, varmap &transform_from, string transform_from_referrer) {
 			if (!transform_from.have_referrer(transform_from_referrer)) return;
 			auto &refs = transform_from.ref[transform_from_referrer];
-			this->ref[here_name] = refs;
+			this->set_referrer(here_name, refs.origin_name, refs.source);
 		}
 		static void set_global(string key, value_type value) {
 			glob_vs[key] = value;
@@ -574,6 +607,13 @@ private:
 		return intValue(tmp);
 	}
 	const set<string> unserial = { "", "function", "class", "null" };
+	static pair<string, string> get_dot(string expr) {
+		size_t last_pos = expr.find_last_of('.');
+		pair<string, string> spls = { expr.substr(0, last_pos), "" };
+		if (last_pos < string::npos) spls.second = expr.substr(last_pos + 1);
+		string dm = "";
+		return spls;
+	}
 	
 	// 'this' is a special reference.
 	map<string, referrer>													ref;
@@ -660,6 +700,17 @@ void generateClass(string variable, string classname, varmap &myenv, bool run_in
 	}
 }
 
+string curexp(string exp, varmap &myenv) {
+	vector<string> dasher = split(exp, ':');
+	if (dasher.size() == 1) return exp;
+	// calcute until the last.
+	intValue final = calcute(dasher[dasher.size() - 1], myenv);
+	for (size_t i = dasher.size() - 2; i >= 1; i--) {
+		final = calcute(dasher[i] + ":" + final.str, myenv);
+	}
+	return dasher[0] + "." + final.str;
+}
+
 // If save_quote, formatting() will not process anything inside quote.
 intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 	if (single_expr == "null" || single_expr == "") return null;
@@ -707,6 +758,21 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 	else {
 		vector<string> spl = split(single_expr, ' ', 1);
 		if (spl.size() && spl[0].length()) {
+			// Internal expressions here ...
+
+			auto spl_check = [&](size_t require = 2) {
+				if (spl.size() < require) {
+					raise_gv_ce("Parameter missing");
+					return intValue(0);
+				}
+			};
+
+			auto auto_curexp = [&]() {
+				if (spl[1].find(':') != string::npos) {
+					spl[1] = curexp(spl[1], vm);
+				}
+			};
+
 			if (spl[0][0] == '$') {
 				spl[0] = vm[spl[0].substr(1)].str;
 			}
@@ -716,6 +782,11 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 				tvm.push();
 				generateClass("__temp_new", spl[1], tvm);
 				return tvm["__temp_new"];
+			}
+			else if (spl[0] == "ishave") {
+				spl_check(2);
+				auto_curexp();
+				return vm.count(spl[1]);
 			}
 		}
 		vector<string> dotspl = { "","" };
@@ -1147,17 +1218,6 @@ intValue calcute(string expr, varmap &vm) {
 #define parameter_check3(req,ext) do {if (codexec3.size() < req) {raise_ce(string("Error: required parameter not given in sub command ") + ext); return null;}} while (false)
 #define dshell_check(req) do {if (spl.size() < req) {cout << "Bad command" << endl; goto dend;}} while (false)
 
-string curexp(string exp, varmap &myenv) {
-	vector<string> dasher = split(exp, ':');
-	if (dasher.size() == 1) return exp;
-	// calcute until the last.
-	intValue final = calcute(dasher[dasher.size() - 1], myenv);
-	for (size_t i = dasher.size() - 2; i >= 1; i--) {
-		final = calcute(dasher[i] + ":" + final.str, myenv);
-	}
-	return dasher[0] + "." + final.str;
-}
-
 map<int, FILE*> files;
 
 class jumpertable {
@@ -1394,14 +1454,6 @@ intValue run(string code, varmap &myenv, string fname) {
 				parameter_check3(2, "Operator number");
 				myenv[codexec2[0]] = myenv.serial(codexec3[1]);
 			}
-			else if (beginWith(codexec2[1], "ishave ")) {
-				vector<string> codexec3 = split(codexec2[1], ' ', 1);
-				parameter_check3(2, "Operator number");
-				if (codexec3[1].find(':') != string::npos) {
-					codexec3[1] = curexp(codexec3[1], myenv);
-				}
-				myenv[codexec2[0]] = intValue(int(myenv.count(codexec3[1])));
-			}
 			else if (codexec2[1] == "clear" || codexec2[1] == "null") {
 				myenv.tree_clean(codexec2[0]);
 			}
@@ -1412,6 +1464,20 @@ intValue run(string code, varmap &myenv, string fname) {
 					codexec3[1] = curexp(codexec3[1], myenv);
 				}
 				myenv.set_referrer(codexec2[0], codexec3[1], &myenv);
+			}
+			else if (beginWith(codexec2[1], "copyof")) {
+				// Copy referrer (directly from its info) or copy value. Therefore, something like 'list' should be changed.
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				parameter_check3(2, "Operator number");
+				if (codexec3[1].find(':') != string::npos) {
+					codexec3[1] = curexp(codexec3[1], myenv);
+				}
+				if (myenv.have_referrer(codexec3[1])) {
+					myenv.transform_referrer_from(codexec2[0], myenv, codexec3[1]);
+				}
+				else {
+					myenv[codexec2[0]] = myenv[codexec3[1]];
+				}
 			}
 #pragma region Internal Calcutions
 			else if (codexec2[1] == "__input") {
@@ -1518,7 +1584,13 @@ intValue run(string code, varmap &myenv, string fname) {
 }
 #pragma endregion
 			else {
-				myenv[codexec2[0]] = calcute(codexec2[1], myenv);
+				auto res = calcute(codexec2[1], myenv);
+				if (res.isObject) {
+					myenv.deserial(codexec2[0], res.str);
+				}
+				else {
+					myenv[codexec2[0]] = res;
+				}
 			}
 			
 		}
@@ -1533,7 +1605,13 @@ intValue run(string code, varmap &myenv, string fname) {
 		else if (codexec2[0].find(":") != string::npos) {
 			codexec2[0] = curexp(codexec2[0], myenv);
 		}
-		myenv.set_global(codexec2[0], calcute(codexec2[1], myenv));
+		auto res = calcute(codexec2[1], myenv);
+		if (res.isObject) {
+			myenv.global_deserial(codexec2[0], res.str);
+		}
+		else {
+			myenv.set_global(codexec2[0], res);
+		}
 		}
 		else if (codexec[0] == "if" || codexec[0] == "elif") {
 			parameter_check(2);

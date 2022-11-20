@@ -11,7 +11,7 @@ class list:
 	init:
 		set this.length=0
 	function append data:
-		set this:this.length=data
+		set this:this.length=copyof data
 		set this.length=this.length+1
 	function remove pos:
 		for i=pos~this.length-1:
@@ -19,9 +19,9 @@ class list:
 		set this.length=this.length-1
 	function insert pos data:
 		for i=this.length~pos~-1:
-			set this:i=this:(i-1)
+			set this:i=copyof this:(i-1)
 		set this.length=this.length+1
-		set this:pos=data
+		set this:pos=copyof data
 
 class _basic_file:
 	init:
@@ -112,6 +112,7 @@ function random:
 function random_ranged min_r max_r:
 	return random%(max_r-min_r)+min_r
 
+# Deprecated class...
 class reference:
 	shared class
 	shared refdata
@@ -141,9 +142,7 @@ class dict:
 		return membersof this
 
 function typeof obj:
-	set o=object obj
-	set temp=__typeof o
-	return temp
+	return obj.__type__
 
 function inheritanceof first second:
 	set fo=object first
