@@ -140,6 +140,7 @@ struct intValue {
 	string								str;
 	bool								isNull = false;
 	bool								isNumeric = false;
+	bool								isObject = false;
 
 	intValue negative() {
 		if (this->isNumeric) {
@@ -369,7 +370,10 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 							return ((*i))[key];
 						}
 						else {
-							return ((*i))[key] = serial(key);
+							auto se = serial(key);
+							intValue res = se;
+							res.isObject = true;
+							return ((*i))[key] = res;
 						}
 					}
 				}
@@ -379,7 +383,10 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 						return glob_vs[key];
 					}
 					else {
-						return glob_vs[key] = serial(key);
+						auto se = serial(key);
+						intValue res = se;
+						res.isObject = true;
+						return glob_vs[key] = res;
 					}
 				}
 				if (key.find('.') != string::npos) {
@@ -639,6 +646,20 @@ string formatting(string origin, char dinner = '\\', char ignorer = -1) {
 	return ns;
 }
 
+void generateClass(string variable, string classname, varmap &myenv, bool run_init = true) {
+	myenv[variable] = null;
+	myenv[variable + ".__type__"] = classname;
+	if (run_init) {
+		varmap vm;
+		vm.push();
+		vm.set_this(&myenv, variable);
+		__spec++;
+		string cini = classname + ".__init__";
+		run(myenv[cini].str, vm, cini);
+		__spec--;
+	}
+}
+
 // If save_quote, formatting() will not process anything inside quote.
 intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 	if (single_expr == "null" || single_expr == "") return null;
@@ -685,11 +706,17 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 	}
 	else {
 		vector<string> spl = split(single_expr, ' ', 1);
-		// Neither string nor number, variable test
-		//vector<string> dotspl = split(spl[0], '.', 1);
-		// Must find last actually.
-		if (spl.size() && spl[0].length() && spl[0][0] == '$') {
-			spl[0] = vm[spl[0].substr(1)].str;
+		if (spl.size() && spl[0].length()) {
+			if (spl[0][0] == '$') {
+				spl[0] = vm[spl[0].substr(1)].str;
+			}
+			else if (spl[0] == "new") {
+				// Object creation
+				varmap tvm;
+				tvm.push();
+				generateClass("__temp_new", spl[1], tvm);
+				return tvm["__temp_new"];
+			}
 		}
 		vector<string> dotspl = { "","" };
 		size_t fl = spl[0].find_last_of('.');
@@ -810,7 +837,14 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 							raise_gv_ce(string("Warning: Not an acceptable referrer: ") + arg[i]);
 						}
 					}
-					nvm[argname[i]] = calcute(arg[i], vm);
+					auto re = calcute(arg[i], vm);
+					if (re.isObject) {
+						// Passing ByVal, automaticly deserial
+						nvm.deserial(argname[i], re.str);
+					}
+					else {
+						nvm[argname[i]] = re;
+					}
 				}
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
@@ -1211,20 +1245,6 @@ size_t getLength(int fid) {
 	return res;
 }
 
-void generateClass(string variable, string classname, varmap &myenv, bool run_init = true) {
-	myenv[variable] = null;
-	myenv[variable + ".__type__"] = classname;
-	if (run_init) {
-		varmap vm;
-		vm.push();
-		vm.set_this(&myenv, variable);
-		__spec++;
-		string cini = classname + ".__init__";
-		run(myenv[cini].str, vm, cini);
-		__spec--;
-	}
-}
-
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv, string fname) {
@@ -1319,13 +1339,15 @@ intValue run(string code, varmap &myenv, string fname) {
 		if (codexec.size() <= 0 || codexec[0][0] == '#') goto add_exp;	// Be proceed as command
 		else if (codexec[0] == "class" || codexec[0] == "function" || codexec[0] == "error_handler:")  {
 			string s = "";
+			int ind;
 			do {
 				if (execptr >= codestream.size() - 1) {
 					execptr = codestream.size();
 					goto after_add_exp;
 				}
 				s = codestream[++execptr];
-			} while (getIndent(s) > 0);
+				ind = getIndent(s);
+			} while (ind > 0);
 			goto after_add_exp;
 		}
 		else if (codexec[0] == "print") {
