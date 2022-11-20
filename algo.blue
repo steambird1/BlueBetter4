@@ -24,7 +24,7 @@ class sorter:
 	function _sort left right:
 		if not (left+1<right):
 			return null
-		set lister=object this.lister
+		set lister=referof this.lister
 		set mid=floor ((left+right)/2)
 		set i=left
 		set j=right
@@ -41,9 +41,7 @@ class sorter:
 			set lister:j=tmp
 			set i=i+1
 			set j=j-1
-		set this.lister=serial lister
 		run this._sort left,j
 		run this._sort i,right
 	function sort:
-		set lister=object this.lister
-		run this._sort 0,(lister.length-1)
+		run this._sort 0,(this.lister.length-1)
