@@ -609,6 +609,7 @@ private:
 		}
 		return result;
 	}
+	// serial and serial_from does NOT support RAW REFERRER.
 	intValue serial_from(single_mapper &obj, string name) {
 		string tmp = mymagic;
 		for (auto &j : obj) {
@@ -621,6 +622,18 @@ private:
 				if (spl[0] != name) continue;
 				spl[1] = j.first.substr(fl + 1);
 				tmp += string(".") + spl[1] + "=" + j.second.unformat() + "\n";
+			}
+		}
+		// Deep copy in default!
+		for (auto &j : this->ref) {
+			if (beginWith(j.first, name + ".")) {
+				vector<string> spl = { "","" };
+				size_t fl = j.first.find('.', j.first.find(name) + name.length());
+				if (fl == string::npos) continue;
+				spl[0] = j.first.substr(0, fl);
+				if (spl[0] != name) continue;
+				spl[1] = j.first.substr(fl + 1);
+				tmp += string(".") + spl[1] + "=" + j.second.getValue().unformat() + "\n";
 			}
 		}
 		return intValue(tmp);
