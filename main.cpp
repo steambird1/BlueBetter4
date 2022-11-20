@@ -607,6 +607,17 @@ private:
 				}
 			}
 		}
+		for (auto &j : this->ref) {
+			if (beginWith(j.first, name + ".")) {	// TODO: Adjust force_show and test
+				vector<string> spl = { "","" };
+				size_t fl = j.first.find('.', j.first.find(name) + name.length());
+				if (fl == string::npos) continue;
+				spl[0] = j.first.substr(0, fl);
+				if (spl[0] != name) continue;
+				spl[1] = j.first.substr(fl + 1);
+				result.push_back(intValue(spl[1]));
+			}
+		}
 		return result;
 	}
 	// serial and serial_from does NOT support RAW REFERRER.
