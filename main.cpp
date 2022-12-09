@@ -612,6 +612,7 @@ private:
 	// serial and serial_from does NOT support RAW REFERRER.
 	intValue serial_from(single_mapper &obj, string name) {
 		string tmp = mymagic;
+		const static string sdot = ".";
 		for (auto &j : obj) {
 			if (beginWith(j.first, name + ".")) {
 				//vector<string> spl = split(j.first, '.', 1);
@@ -633,7 +634,26 @@ private:
 				spl[0] = j.first.substr(0, fl);
 				if (spl[0] != name) continue;
 				spl[1] = j.first.substr(fl + 1);
-				tmp += string(".") + spl[1] + "=" + j.second.getValue().unformat() + "\n";
+				auto val = j.second.getValue();
+				if (unserial.count(j.second.getValue("__type__").str)) {
+					// Simple values:
+					tmp += sdot + spl[1] + "=" + val.unformat() + "\n";
+				}
+				else {
+					// Deserial it at once:
+					string serial = val.str;
+					if (!beginWith(serial, mymagic)) {
+						continue;
+					}
+					serial = serial.substr(mymagic.length());
+					vector<string> lspl = split(serial, '\n', -1, '\"', '\\', true);
+					for (auto &i : lspl) {
+						vector<string> itemspl = split(i, '=', 1);
+						if (itemspl.size() < 2) itemspl.push_back("null");
+						tmp += sdot + spl[1] + itemspl[0] + "=" + itemspl[1] + "\n";
+					}
+				}
+				
 			}
 		}
 		return intValue(tmp);
@@ -741,6 +761,15 @@ string curexp(string exp, varmap &myenv) {
 		final = calcute(dasher[i] + ":" + final.str, myenv);
 	}
 	return dasher[0] + "." + final.str;
+}
+
+inline string auto_curexp(string exp, varmap &myenv) {
+	if (exp.find(':') != string::npos) {
+		return curexp(exp, myenv);
+	}
+	else {
+		return exp;
+	}
 }
 
 // If save_quote, formatting() will not process anything inside quote.
@@ -879,12 +908,22 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 				xspl[0] = vm[spl[0] + ".__type__"].str;
 			}
 			string args = vm[spl[0] + ".__arg__"].str;
+			string array_arg = "";
+			static string pa_name = "...";	// Constants: No changes!
+			static string dots = ".";
+			vector<string> argname;	// Stores arguments that is required.
+			vector<string> arg;	// Stores arguments that is provided.
+			vector<intValue> ares;	// Stores values to deliver
+			if (beginWith(args, pa_name)) {
+				array_arg = args.substr(pa_name.length());
+				generateClass(array_arg, "list", nvm);
+			}
+			else {
+				argname = split(args, ' ');
+			}
 			if (args.length()) {
-				vector<string> argname = split(args, ' ');
-				vector<string> arg;
-				vector<intValue> ares;
 				bool str = false, dmode = false;
-				if (spl.size() >= 2) {
+				if (spl.size() >= 2) {	// Procees with arguments ...
 					//arg = split(spl[1], ',');
 					int quotes = 0;
 					string tmp = "";
@@ -918,21 +957,33 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 				else {
 					arg.push_back(spl[1]);
 				}
-				if (arg.size() != argname.size()) {
-					raise_gv_ce(string("Warning: Parameter dismatches or function does not exist while calling function ") + spl[0]);
-
-					return null;
+				if (!array_arg.length()) {
+					if (arg.size() != argname.size()) {
+						raise_gv_ce(string("Warning: Parameter dismatches or function does not exist while calling function ") + spl[0]);
+						return null;
+					}
 				}
+				
 				for (size_t i = 0; i < arg.size(); i++) {
 					// Special character '^' will pass the referer!
 					if (arg[i].length() && arg[i][0] == '^') {
 						string rname = arg[i].substr(1);
 						if (vm.have_referrer(rname)) {
-							nvm.transform_referrer_from(argname[i], vm, rname);
+							if (array_arg.length()) {
+								nvm.transform_referrer_from(array_arg + dots + to_string(i), vm, auto_curexp(rname, vm));
+							}
+							else {
+								nvm.transform_referrer_from(argname[i], vm, auto_curexp(rname, vm));
+							}
 							continue;
 						}
 						else if (vm.count(rname)) {
-							nvm.set_referrer(argname[i], rname, &vm);
+							if (array_arg.length()) {
+								nvm.set_referrer(array_arg + dots + to_string(i), auto_curexp(rname, vm), &vm);
+							}
+							else {
+								nvm.set_referrer(argname[i], auto_curexp(rname, vm), &vm);
+							}
 							continue;
 						}
 						else {
@@ -944,12 +995,25 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 					auto re = calcute(arg[i], vm);
 					if (re.isObject) {
 						// Passing ByVal, automaticly deserial
-						nvm.deserial(argname[i], re.str);
+						if (array_arg.length()) {
+							nvm.deserial(array_arg + dots + to_string(i), re.str);
+						}
+						else {
+							nvm.deserial(argname[i], re.str);
+						}
 					}
 					else {
-						nvm[argname[i]] = re;
+						if (array_arg.length()) {
+							nvm[array_arg + dots + to_string(i)] = re;
+						}
+						else {
+							nvm[argname[i]] = re;
+						}
 					}
 				}
+			}
+			if (array_arg.length()) {
+				nvm[array_arg + dots + "length"] = intValue(arg.size());
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
 			if (set_no_this) {

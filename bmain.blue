@@ -296,3 +296,10 @@ function find_last origin finder:
 		else:
 			set matcher=tmp
 	return -1
+
+function make_list ...obj:
+	return obj
+
+function ctype typename object:
+	set object.__type__=typename
+	return object
