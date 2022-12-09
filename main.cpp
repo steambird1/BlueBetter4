@@ -1494,7 +1494,7 @@ intValue run(string code, varmap &myenv, string fname) {
 		string prerun = cep;
 		getIndent(prerun);	//?
 		if (codexec.size() <= 0 || codexec[0][0] == '#') goto add_exp;	// Be proceed as command
-		else if (codexec[0] == "class" || codexec[0] == "function" || codexec[0] == "error_handler:")  {
+		else if (codexec[0] == "class" || codexec[0] == "function" || codexec[0] == "error_handler:") {
 			string s = "";
 			int ind;
 			do {
@@ -1519,7 +1519,7 @@ intValue run(string code, varmap &myenv, string fname) {
 			parameter_check(2);
 			raiseError(calcute(codexec[1], myenv), myenv, fname, execptr + 1, -1, "User define error");
 		}
-		else if (codexec[0] == "set") {
+		else if (codexec[0] == "set" || codexec[0] == "declare") {
 			parameter_check(2);
 			vector<string> codexec2 = split(codexec[1], '=', 1);
 			parameter_check2(2,"set");
@@ -1529,6 +1529,9 @@ intValue run(string code, varmap &myenv, string fname) {
 			}
 			else if (codexec2[0].find(":") != string::npos) {
 				codexec2[0] = curexp(codexec2[0], myenv);
+			}
+			if (codexec[0] == "declare") {
+				myenv.declare(codexec2[0]);
 			}
 			if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "new ") {
 				vector<string> azer = split(codexec2[1], ' ');	// Classname is azer[1]
@@ -2470,7 +2473,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.13b\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.14\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
