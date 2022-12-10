@@ -960,8 +960,13 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 				}
 				if (!array_arg.length()) {
 					if (arg.size() != argname.size()) {
-						raise_gv_ce(string("Warning: Parameter dismatches or function does not exist while calling function ") + spl[0]);
-						return null;
+						if (argname.size() && arg.size() == argname.size() - 1) {
+							arg.push_back("null");	 // Placeholder
+						}
+						else {
+							raise_gv_ce(string("Warning: Parameter dismatches or function does not exist while calling function ") + spl[0]);
+							return null;
+						}
 					}
 				}
 				
@@ -2474,7 +2479,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.14\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.14a\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
