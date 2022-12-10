@@ -300,6 +300,22 @@ function find_last origin finder:
 function make_list ...obj:
 	return obj
 
+function pair first second:
+	set o=new object
+	set o.first=copyof first
+	set o.second=copyof second
+	return o
+
+function make_object ...pairs:
+	debugger
+	set o=new object
+	for i=0~pairs.length:
+		set p=pairs:i
+		set pkey=p.first
+		set pvalue=p.second
+		set o:pkey=pvalue
+	return o
+
 function ctype typename object:
 	set object.__type__=typename
 	return object

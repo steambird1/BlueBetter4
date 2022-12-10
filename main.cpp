@@ -408,15 +408,34 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 				vector<string> la = split(key, '.', 1);
 				for (vit i = vs.rbegin(); i != vs.rend(); i++) {
 					if (i->count(la[0])) {
-						if (!i->count(key)) (*i)[key] = null;
-						return (*i)[key];
+						if (!i->count(key)) return (*i)[key] = null;
+						if (unserial.count((*i)[key + ".__type__"].str)) {
+							return (*i)[key];
+						}
+						else {
+							auto se = serial(key);
+							intValue res = se;
+							res.isObject = true;
+							return ((*i))[key] = res;
+						}
+						
 					}
 				}
 				if (glob_vs.count(la[0])) {
 					if (!glob_vs.count(key)) {
-						glob_vs[key] = null;
+						return glob_vs[key] = null;
 					}
-					return glob_vs[key];
+					if (unserial.count(glob_vs[key + ".__type__"].str)) {
+						return glob_vs[key];
+					}
+					else {
+						
+						auto se = serial(key);
+						intValue res = se;
+						res.isObject = true;
+						return glob_vs[key] = res;
+					}
+					
 				}
 			}
 			
