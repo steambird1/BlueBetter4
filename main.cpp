@@ -402,6 +402,23 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			if (have_referrer(key)) {
 				return this->ref[key].getValue();
 			}
+
+			if (key.find('.') != string::npos) {
+				// Must in same layer
+				vector<string> la = split(key, '.', 1);
+				for (vit i = vs.rbegin(); i != vs.rend(); i++) {
+					if (i->count(la[0])) {
+						if (!i->count(key)) (*i)[key] = null;
+						return (*i)[key];
+					}
+				}
+				if (glob_vs.count(la[0])) {
+					if (!glob_vs.count(key)) {
+						glob_vs[key] = null;
+					}
+					return glob_vs[key];
+				}
+			}
 			
 				for (vit i = vs.rbegin(); i != vs.rend(); i++) {
 					if (i->count(key)) {
@@ -428,23 +445,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 						return glob_vs[key] = res;
 					}
 				}
-				if (key.find('.') != string::npos) {
-					// Must in same layer
-					vector<string> la = split(key, '.', 1);
-					for (vit i = vs.rbegin(); i != vs.rend(); i++) {
-						if (i->count(la[0])) {
-							(*i)[key] = null;
-							return (*i)[key];
-						}
-					}
-					if (glob_vs.count(la[0])) {
-						glob_vs[key] = null;
-						return glob_vs[key];
-					}
-				}
-				else {
-					if (!vs[vs.size() - 1].count(key)) vs[vs.size() - 1][key] = null;
-				}
+				
 				return vs[vs.size() - 1][key];
 			
 		}
