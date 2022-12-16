@@ -2494,7 +2494,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.14b\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.14c\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
@@ -2527,13 +2527,21 @@ int main(int argc, char* argv[]) {
 		else if (beginWith(opt, "--const:")) {
 			// String values only
 			vector<string> spl = split(opt, ':', 1);
+			if (spl.size() < 2) {
+				curlout();
+				cout << "Error: Bad format of --const option" << endl;
+				endout();
+				return 1;
+			}
 			vector<string> key_value = split(spl[1], '=', 1);
-			reqs[key_value[0]] = intValue(key_value[1]);
-			// test:
-			//specialout();
-			//cout << "Set: " << key_value[0] << "=" << reqs[key_value[0]] << endl;
-			//endout();
-			// end
+			if (key_value.size() < 2) {
+				reqs[key_value[0]] = null;
+			}
+			else {
+				reqs[key_value[0]] = intValue(key_value[1]);
+			}
+
+
 		}
 	}
 #pragma endregion
