@@ -773,14 +773,10 @@ void generateClass(string variable, string classname, varmap &myenv, bool run_in
 }
 
 string curexp(string exp, varmap &myenv) {
-	vector<string> dasher = split(exp, ':');
+	vector<string> dasher = split(exp, ':', 1);
 	if (dasher.size() == 1) return exp;
-	// calcute until the last.
-	intValue final = calcute(dasher[dasher.size() - 1], myenv);
-	for (size_t i = dasher.size() - 2; i >= 1; i--) {
-		final = calcute(dasher[i] + ":" + final.str, myenv);
-	}
-	return dasher[0] + "." + final.str;
+	// Not the connection!
+	return dasher[0] + "." + calcute(dasher[1], myenv).str;
 }
 
 inline string auto_curexp(string exp, varmap &myenv) {
@@ -1231,7 +1227,7 @@ intValue calcute(string expr, varmap &vm) {
 	// my_pr not provided (-1): Keep on poping
 	auto auto_pop = [&](int my_pr = -1) {
 		op_pr = -2;
-		while ((!op.empty()) && (op_pr = priority(op.top())) > my_pr) {
+		while ((!op.empty()) && (op_pr = priority(op.top())) >= my_pr) {	 // Therefore we changes right-to-left to left-to-right
 			intValue v1, v2;
 			char mc = op.top();
 			op.pop();
