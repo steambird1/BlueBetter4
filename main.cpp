@@ -988,22 +988,22 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 				for (size_t i = 0; i < arg.size(); i++) {
 					// Special character '^' will pass the referer!
 					if (arg[i].length() && arg[i][0] == '^') {
-						string rname = arg[i].substr(1);
+						string rname = auto_curexp(arg[i].substr(1), vm);
 						if (vm.have_referrer(rname)) {
 							if (array_arg.length()) {
-								nvm.transform_referrer_from(array_arg + dots + to_string(i), vm, auto_curexp(rname, vm));
+								nvm.transform_referrer_from(array_arg + dots + to_string(i), vm, rname);
 							}
 							else {
-								nvm.transform_referrer_from(argname[i], vm, auto_curexp(rname, vm));
+								nvm.transform_referrer_from(argname[i], vm, rname);
 							}
 							continue;
 						}
 						else if (vm.count(rname)) {
 							if (array_arg.length()) {
-								nvm.set_referrer(array_arg + dots + to_string(i), auto_curexp(rname, vm), &vm);
+								nvm.set_referrer(array_arg + dots + to_string(i), rname, &vm);
 							}
 							else {
-								nvm.set_referrer(argname[i], auto_curexp(rname, vm), &vm);
+								nvm.set_referrer(argname[i], rname, &vm);
 							}
 							continue;
 						}
