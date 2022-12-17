@@ -112,28 +112,32 @@ function random:
 function random_ranged min_r max_r:
 	return random%(max_r-min_r)+min_r
 
-# Deprecated class...
 class reference:
 	shared class
 	shared refdata
 	function put obj:
+		raise "The class 'reference' is a deprecated class, which shouldn't be used anymore."
 		set r=random
 		while not isnull reference.refdata:r:
 			set r=random
 		set reference.refdata:r=obj
 		return r
 	function get point:
+		raise "The class 'reference' is a deprecated class, which shouldn't be used anymore."
 		return reference.refdata:point
 	function sets point obj:
+		raise "The class 'reference' is a deprecated class, which shouldn't be used anymore."
 		set reference.refdata:point=obj
 	function valid point:
+		raise "The class 'reference' is a deprecated class, which shouldn't be used anymore."
 		return not isnull refrence.reference.refdata:point
 	function getexp point:
+		raise "The class 'reference' is a deprecated class, which shouldn't be used anymore."
 		return "reference.refdata."+point
 
 class dict:
 	function count member:
-		set res=ishave this:member
+		set res=ishave (this:member)
 		return res
 	function length:
 		set t=object membersof this
@@ -268,6 +272,9 @@ function acos x:
 function sqrt x:
 	call res=_maths_sqrt,x
 	return res
+
+function pi:
+	return acos 0.5*3
 
 function trim x:
 	call res=_trim,x
