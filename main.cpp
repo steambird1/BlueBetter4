@@ -851,6 +851,9 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 					raise_gv_ce("Parameter missing");
 					return intValue(0);
 				}
+				// Remove () for them:
+				while (spl[1].length() && spl[1][0] == '(') spl[1].erase(spl[1].begin());
+				while (spl[1].length() && spl[1][spl[1].length() - 1] == ')') spl[1].pop_back();
 				if (spl[1].find(':') != string::npos) {
 					spl[1] = curexp(spl[1], vm);
 				}
@@ -861,6 +864,9 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 					raise_gv_ce("Parameter missing");
 					return intValue(0);
 				}
+				// Remove () for them:
+				while (spl[1].length() && spl[1][0] == '(') spl[1].erase(spl[1].begin());
+				while (spl[1].length() && spl[1][spl[1].length() - 1] == ')') spl[1].pop_back();
 				if (spl[1].find(':') != string::npos) {
 					spl[1] = curexp(spl[1], vm);
 				}
