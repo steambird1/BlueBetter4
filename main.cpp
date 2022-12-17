@@ -524,7 +524,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 				// Clean in my tree.
 				for (auto i = vs.rbegin(); i != vs.rend(); i++) {
 					if (i->count(name)) {
-						(*i)[name] = null;
+						i->erase(name);
 						vector<string> to_delete;
 						for (auto &j : (*i)) {
 							if (beginWith(j.first, name + ".")) {
@@ -535,6 +535,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 						for (auto &j : to_delete) {
 							i->erase(j);
 						}
+						return;
 					}
 				}
 		}
