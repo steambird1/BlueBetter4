@@ -1258,7 +1258,7 @@ intValue calcute(string expr, varmap &vm) {
 			if (expr[i] == '(') {
 				// Here should be operator previously.
 				int t = 1;
-				while (int(i)-t>=0 && expr[i - t] == '(') t--;
+				while (int(i)-t>0 && expr[i - t] == '(') t++;
 				if ((i == 0 || priority(expr[i - t]) >= 0) && (!ignore)) {
 					op.push('(');
 				}
@@ -2501,7 +2501,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.14d\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.14e\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
