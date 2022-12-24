@@ -185,6 +185,14 @@ function int_input:
 	set temp=__input_int
 	return temp
 
+function char_input:
+	set temp=__char_input
+	return temp
+
+function str_input:
+	set temp=__str_input
+	return temp
+
 function input:
 	set temp=__input
 	return temp
@@ -225,7 +233,10 @@ function str num:
 
 function substr origin begin length:
 	set newstr=""
-	for i=begin~begin+length:
+	set ender=begin+length
+	if (length<0)|(ender>len origin):
+		set ender=len origin
+	for i=begin~ender:
 		set newstr=newstr+origin#i
 	return newstr
 
@@ -242,8 +253,7 @@ function split origin delimit maxsplit:
 			set tmp=tmp+origin#i
 	if (len tmp)>0:
 		run res.append tmp
-	set s=serial res
-	return s
+	return res
 
 function sin x:
 	call res=_maths_sin,x
@@ -314,7 +324,6 @@ function pair first second:
 	return o
 
 function make_object ...pairs:
-	debugger
 	set o=new object
 	for i=0~pairs.length:
 		set p=pairs:i
@@ -326,3 +335,77 @@ function make_object ...pairs:
 function ctype typename object:
 	set object.__type__=typename
 	return object
+
+class datetime:
+	init:
+		# Add .year, .month, .day, .hour, .minute, .second, .ms, .week by system
+		__dev__ time_set
+
+class datetime_diff:
+	init:
+		set this.hour=0
+		set this.minute=0
+		set this.second=0
+	function compare stamp_a stamp_b:
+		set sec=stamp_b-stamp_a
+		set this.second=sec%60
+		set this.minute=floor (sec/60)%60
+		set this.hour=floor (sec/3600)
+
+class format:
+	shared __add_space
+	hidden fstring
+	init:
+		set this.fstring=""
+	function set_format strs:
+		set this.fstring=strs
+	function __add_space raw_str sp has_zero:
+		set to_add=sp-len raw_str
+		set mask=" "
+		if has_zero:
+			set mask="0"
+		if to_add<1:
+			return raw_str
+		else:
+			return mask*to_add+raw_str
+	function calls ...values:
+		set slen_length=len this.fstring
+		set slen=referof this.fstring
+		set result=""
+		set curptr=0
+		set ord_zero_lb=ord "0"-1
+		set ord_nine_ub=ord "9"+1
+		for i=0~slen_length:
+			if slen#i="%":
+				if slen#(i+1)="%":
+					set result=result+"%"
+				else:
+					set prefixs=""
+					set zfill=false
+					set have_prefix=false
+					set prefix_lens=0
+					while ((ord (slen#(i+1)))>ord_zero_lb)&((ord (slen#(i+1)))<ord_nine_ub):
+						set prefixs=prefixs+slen#(i+1)
+						set i=i+1
+						set have_prefix=true
+					if have_prefix:
+						if prefixs#0="0":
+							set zfill=true
+							set prefixs=substr prefixs,1,-1
+						set prefix_lens=atoi prefixs
+					if slen#(i+1)="s":
+						set result=result+format.__add_space (values:curptr),prefix_lens,zfill
+						set curptr=curptr+1
+					elif slen#(i+1)="d":
+						set result=result+format.__add_space (atoi (values:curptr)),prefix_lens,zfill
+						set curptr=curptr+1
+					elif slen#(i+1)="f":
+						set result=result+format.__add_space (atof (values:curptr)),prefix_lens,zfill
+						set curptr=curptr+1
+					elif slen#(i+1)="c":
+						set result=result+format.__add_space (chr (values:curptr)),prefix_lens,zfill
+						set curptr=curptr+1
+				set i=i+1
+			else:
+				set result=result+(slen#i)
+		return result

@@ -978,7 +978,7 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 					if (tmp.length()) arg.push_back(tmp);
 				}
 				else {
-					arg.push_back(spl[1]);
+					if (spl.size() >= 2) arg.push_back(spl[1]);
 				}
 				if (!array_arg.length()) {
 					if (arg.size() != argname.size()) {
@@ -1041,7 +1041,12 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 				}
 			}
 			if (array_arg.length()) {
-				nvm[array_arg + dots + "length"] = intValue(arg.size());
+				int external = 0;
+				if (single_expr[single_expr.length() - 1] == ',') {
+					nvm[array_arg + dots + to_string(arg.size())] = null;
+					external = 1;
+				}
+				nvm[array_arg + dots + "length"] = intValue(arg.size() + external);
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
 			if (set_no_this) {
@@ -1660,6 +1665,16 @@ intValue run(string code, varmap &myenv, string fname) {
 				scanf("%lf", &dv);
 				myenv[codexec2[0]] = intValue(dv);
 			}
+			else if (codexec2[1] == "__char_input") {
+				char cv;
+				scanf("%c", &cv);
+				myenv[codexec2[0]] = intValue(int(cv));
+			}
+			else if (codexec2[1] == "__str_input") {
+				string strv;
+				cin >> strv;
+				myenv[codexec2[0]] = intValue(strv);
+			}
 			else if (codexec2[1] == "__time") {
 				myenv[codexec2[0]] = intValue(time(NULL));
 			}
@@ -2174,9 +2189,23 @@ intValue run(string code, varmap &myenv, string fname) {
 			// Do nothing
 		}
 		else if (codexec[0] == "__dev__") {
-		specialout();
-		cout << "Developer call" << endl;
-		endout();
+			if (codexec[1] == "time_set") {
+				SYSTEMTIME sys;
+				GetLocalTime(&sys);
+				myenv["this.year"] = intValue(sys.wYear);
+				myenv["this.month"] = intValue(sys.wMonth);
+				myenv["this.day"] = intValue(sys.wDay);
+				myenv["this.hour"] = intValue(sys.wHour);
+				myenv["this.minute"] = intValue(sys.wMinute);
+				myenv["this.second"] = intValue(sys.wSecond);
+				myenv["this.ms"] = intValue(sys.wMilliseconds);
+				myenv["this.week"] = intValue(sys.wDayOfWeek);
+			}
+			else {
+				specialout();
+				cout << "Developer call" << endl;
+				endout();
+			}
 		}
 		else if (codexec[0] == "debugger") {
 		if (in_debug) {
@@ -2501,7 +2530,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.14e\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.15\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
