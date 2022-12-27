@@ -2327,6 +2327,9 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 	intcalls["eval"] = [](string args, varmap &env) -> intValue {
 		return run(calculate(args, env).str, env, "Internal eval()");
 	};
+	intcalls["__bnot"] = [](string args, varmap &env) -> intValue {
+		return ~ulong64(calculate(args, env).numeric);
+	};
 	// It is better to add more functions by intcalls, not set
 #define math_extension(funame) intcalls["_maths_" #funame] = [](string args, varmap &env) -> intValue { \
 		return intValue(funame(calculate(args, env).numeric)); \
