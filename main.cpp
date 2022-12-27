@@ -1282,6 +1282,10 @@ intValue calculate(string expr, varmap &vm) {
 		if (expr[i] == '\\' && (!dmode)) dmode = true;
 		else dmode = false;
 		int my_pr = priority(expr[i]);
+		// Special processor for function call with '^'
+		if (expr[i] == '^' && (i == 0 || expr[i - 1] == '(' || expr[i - 1] == ',' || expr[i - 1] == ' ')) {
+			my_pr = -1;	// Not to regard it as an operator
+		}
 		if (my_pr >= 0 && (!qmode) && (!dmode)) {
 			if (expr[i] == '(') {
 				// Here should be operator previously.
