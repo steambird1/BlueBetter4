@@ -2189,7 +2189,7 @@ intValue run(string code, varmap &myenv, string fname) {
 			// Do nothing
 		}
 		else if (codexec[0] == "__dev__") {
-			if (codexec[1] == "time_set") {
+			if (codexec.size() >= 2 && codexec[1] == "time_set") {
 				SYSTEMTIME sys;
 				GetLocalTime(&sys);
 				myenv["this.year"] = intValue(sys.wYear);
