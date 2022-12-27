@@ -724,20 +724,28 @@ public:
 	inheritance_disjoint() {
 
 	}
-	string find(string name) {
-		while (name.length() && name[name.length() - 1] == '\n') name.pop_back();
-		if (!inhs.count(name)) inhs[name] = name;
-		if (inhs[name] == name) return name;
-		return inhs[name] = find(inhs[name]);
-	}
+	// Father: a, Son: b
 	inline void unions(string a, string b) {
-		inhs[find(a)] = find(b);
+		father_classes[b].insert(a);
 	}
-	inline bool is_same(string a, string b) {
-		return find(a) == find(b);
+	// Ask if b is a's father (or grand ... father) according to the usage
+	bool is_same(string a, string b) {
+		if (a == b) return true;
+		auto mp = make_pair(a, b);
+		if (result_caches.count(mp)) return result_caches[mp];
+		bool result = false;
+		for (auto &i : father_classes[a]) {
+			if (is_same(i, b)) {
+				result = true;
+				break;
+			}
+		}
+		return result_caches[mp] = result;
 	}
 private:
-	map<string, string> inhs;
+	//map<string, string> inhs;
+	map<string, set<string> > father_classes;
+	map<pair<string, string>, bool> result_caches;
 } inh_map;
 
 // Ignorer can be quote-like char.
@@ -1083,7 +1091,7 @@ int priority(char op) {
 	case '#':
 		return 5;
 		break;
-	case '&': case '|':
+	case '&': case '|': case '^':
 		return 4;
 		break;
 	case '*': case '/': case '%':
@@ -1212,7 +1220,22 @@ intValue primary_calcute(intValue first, char op, intValue second, varmap &vm) {
 			return 1;
 		}
 		break;
+	case '^':
+		if (first.isNumeric && second.isNumeric) {
+			return ulong64(first.numeric) ^ ulong64(second.numeric);
+		}
+		else {
+			bool first_bool = true, second_bool = true;
+			if (first.isNull) first_bool = false;
+			else if (first.str.length() == 0) first_bool = false;
+			
+			if (second.isNull) second_bool = false;
+			else if (second.str.length() == 0) second_bool = false;
+			
+			return first_bool ^ second_bool;
+		}
 	default:
+		raiseError(intValue("Unknown operator"), vm, "Runtime");
 		return null;
 	}
 }
