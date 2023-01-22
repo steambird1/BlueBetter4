@@ -156,6 +156,7 @@ struct intValue {
 
 	void set_numeric(double value) {
 		this->numeric = value;
+		this->str = to_string(value);
 		this->isNull = false;
 		this->isNumeric = true;
 	}
@@ -959,11 +960,11 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 					int quotes = 0;
 					string tmp = "";
 					for (auto &i : spl[1]) {
-						if (i == '(') {
+						if (i == '(' && (!str)) {
 							if (quotes) tmp += i;
 							quotes++;
 						}
-						else if (i == ')') {
+						else if (i == ')' && (!str)) {
 							quotes--;
 							if (quotes) tmp += i;
 						} else if (i == '\\' && (!dmode)) {
