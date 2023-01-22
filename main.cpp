@@ -1084,25 +1084,26 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 	}
 }
 
+// Single ones must have the same as multi ones.
 int priority(char op) {
 	switch (op) {
 	case ')': case ':':	// Must make sure ':' has the most priority
-		return 6;
+		return 7;
 		break;
 	case '#':
-		return 5;
+		return 6;
 		break;
 	case '&': case '|': case '^':
-		return 4;
+		return 5;
 		break;
 	case '*': case '/': case '%':
-		return 3;
+		return 4;
 		break;
 	case '+': case '-':
-		return 2;
+		return 3;
 		break;
-	case '>': case '<': case '=':
-		return 1;
+	case '>': case '<': case '=':	// >=, <= stay the same
+		return 2;
 		break;
 	case '(':
 		return 0;
@@ -1112,12 +1113,19 @@ int priority(char op) {
 	}
 }
 
+int priority(string op) {
+	if (!op.length()) return -1;
+	return priority(op[0]);
+}
+
 typedef long long							long64;
 typedef unsigned long long					ulong64;
 
 // Please notice special meanings.
-intValue primary_calculate(intValue first, char op, intValue second, varmap &vm) {
-	switch (op) {
+intValue primary_calculate(intValue first, string op, intValue second, varmap &vm) {
+	if (!op.length()) return null;	// Can't be.
+	switch (op[0]) {
+#define if_have_additional_op(oper) if (op.length() >= 2 && op[1] == oper)
 	case '(': case ')':
 		break;
 	case ':':
@@ -1175,20 +1183,68 @@ intValue primary_calculate(intValue first, char op, intValue second, varmap &vm)
 		return first.numeric - second.numeric;
 		break;
 	case '>':
-		if (first.isNumeric) {
-			return first.numeric > second.numeric;
+		// Judge >= or >>
+		if_have_additional_op('=') {
+			if (first.isNumeric) {
+				return first.numeric >= second.numeric;
+			}
+			else {
+				return first.str >= second.str;
+			}
+		}
+		else if_have_additional_op('>') {
+			if (first.isNumeric && second.isNumeric) {
+				return ulong64(first.numeric) >> ulong64(second.numeric);
+			}
+			else {
+				return null;
+			}
 		}
 		else {
-			return first.str > second.str;
+			if (first.isNumeric) {
+				return first.numeric > second.numeric;
+			}
+			else {
+				return first.str > second.str;
+			}
 		}
 		break;
 	case '<':
-		if (first.isNumeric) {
-			return first.numeric < second.numeric;
+		// Judge <=, <> or <<
+		if_have_additional_op('=') {
+			if (first.isNumeric) {
+				return first.numeric <= second.numeric;
+			}
+			else {
+				return first.str <= second.str;
+			}
+		}
+		else if_have_additional_op('<') {
+			if (first.isNumeric && second.isNumeric) {
+				return ulong64(first.numeric) << ulong64(second.numeric);
+			}
+			else {
+				return null;
+			}
+		}
+		else if_have_additional_op('>') {
+			// Not equal
+			if (first.isNumeric) {
+				return first.numeric != second.numeric;
+			}
+			else {
+				return first.str != second.str;
+			}
 		}
 		else {
-			return first.str < second.str;
+			if (first.isNumeric) {
+				return first.numeric < second.numeric;
+			}
+			else {
+				return first.str < second.str;
+			}
 		}
+		
 		break;
 	case '=':
 		if (first.isNull && second.isNull) {
@@ -1202,24 +1258,36 @@ intValue primary_calculate(intValue first, char op, intValue second, varmap &vm)
 		}
 		break;
 	case '&':
-		if (first.isNumeric && second.isNumeric) {
-			return ulong64(first.numeric) & ulong64(second.numeric);
+		// Judge &&
+		if_have_additional_op('&') {
+			if (first.isNumeric && second.isNumeric) {
+				return ulong64(first.numeric) && ulong64(second.numeric);
+			}
 		}
 		else {
-			if (first.isNull || second.isNull) return 0;
-			if (first.str.length() == 0 || second.str.length() == 0) return 0;
-			return 1;
+			if (first.isNumeric && second.isNumeric) {
+				return ulong64(first.numeric) & ulong64(second.numeric);
+			}
 		}
+		if (first.isNull || second.isNull) return 0;
+		if (first.str.length() == 0 || second.str.length() == 0) return 0;
+		return 1;
 		break;
 	case '|':
-		if (first.isNumeric && second.isNumeric) {
-			return ulong64(first.numeric) | ulong64(second.numeric);
+		// Judge ||
+		if_have_additional_op('|') {
+			if (first.isNumeric && second.isNumeric) {
+				return ulong64(first.numeric) || ulong64(second.numeric);
+			}
 		}
 		else {
-			if (first.isNull && second.isNull) return 0;
-			if (first.str.length() == 0 && second.str.length() == 0) return 0;
-			return 1;
+			if (first.isNumeric && second.isNumeric) {
+				return ulong64(first.numeric) | ulong64(second.numeric);
+			}
 		}
+		if (first.isNull && second.isNull) return 0;
+		if (first.str.length() == 0 && second.str.length() == 0) return 0;
+		return 1;
 		break;
 	case '^':
 		if (first.isNumeric && second.isNumeric) {
@@ -1239,12 +1307,13 @@ intValue primary_calculate(intValue first, char op, intValue second, varmap &vm)
 		raiseError(intValue("Unknown operator"), vm, "Runtime");
 		return null;
 	}
+#undef if_have_additional_op
 }
 
 // Code must be checked
 intValue calculate(string expr, varmap &vm) {
 	if (expr.length() == 0) return null;
-	stack<char> op;
+	stack<string> op;
 	stack<intValue> val;
 	string operand = "";
 	bool cur_neg = false, qmode = false, dmode = false;
@@ -1265,7 +1334,7 @@ intValue calculate(string expr, varmap &vm) {
 		op_pr = -2;
 		while ((!op.empty()) && (op_pr = priority(op.top())) >= my_pr) {	 // Therefore we changes right-to-left to left-to-right
 			intValue v1, v2;
-			char mc = op.top();
+			string mc = op.top();
 			op.pop();
 			v1 = val.top();
 
@@ -1293,7 +1362,7 @@ intValue calculate(string expr, varmap &vm) {
 				int t = 1;
 				while (int(i)-t>0 && expr[i - t] == '(') t++;
 				if ((i == 0 || priority(expr[i - t]) >= 0) && (!ignore)) {
-					op.push('(');
+					op.push("(");
 				}
 				else {
 					ignore++;
@@ -1305,9 +1374,9 @@ intValue calculate(string expr, varmap &vm) {
 					if (operand.length()) {
 						auto_push();
 					}
-					while ((!op.empty()) && (op.top() != '(')) {
+					while ((!op.empty()) && (op.top() != "(")) {
 						intValue v1, v2;
-						char mc = op.top();
+						string mc = op.top();
 						op.pop();
 
 						v1 = val.top();
@@ -1349,9 +1418,47 @@ intValue calculate(string expr, varmap &vm) {
 						}
 						cur_neg = false;
 					}
+					else if (!op.empty()) {	// Can't have something like &a& -> a&&
+						string top_op = op.top();
+						if (top_op.length()) {
+							switch (top_op[0]) {
+							case '&':
+								if (expr[i] == '&') {
+									op.pop();
+									op.push("&&");
+									goto end_of_pusher;
+								}
+								break;
+							case '|':
+								if (expr[i] == '|') {
+									op.pop();
+									op.push("||");
+									goto end_of_pusher;
+								}
+								break;
+							case '<':
+								if (expr[i] == '>') {
+									op.pop();
+									op.push("<>");
+									goto end_of_pusher;
+								}
+								// PASSTHROUGH FOR << or <=
+							case '>':
+								if (expr[i] == '=' || expr[i] == top_op[0]) {
+									op.pop();
+									op.push({ top_op[0], expr[i] });
+									goto end_of_pusher;
+								}
+								break;
+							default:
+								break;
+							}
+						}
+					}
 					auto_pop(my_pr);
-					op.push(expr[i]);
+					op.push(string({expr[i]}));
 					operand = "";
+				end_of_pusher:;
 				}
 			}
 			else {
