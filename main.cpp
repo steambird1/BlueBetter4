@@ -164,7 +164,7 @@ struct intValue {
 	void set_str(string value) {
 		this->str = value;
 		this->isNull = false;
-		this->isNumeric = true;
+		this->isNumeric = false;
 	}
 
 	intValue() {
@@ -1690,6 +1690,17 @@ intValue run(string code, varmap &myenv, string fname) {
 		else if (codexec[0] == "set" || codexec[0] == "declare") {
 			parameter_check(2);
 			vector<string> codexec2 = split(codexec[1], '=', 1);
+			string external_op = "", &czero = codexec2[0];
+			char det;
+			// Only 2 layers' detect, reversely
+			if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+				external_op = det;
+				czero.pop_back();
+				if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+					external_op = det + external_op;
+					czero.pop_back();
+				}
+			}
 			parameter_check2(2,"set");
 			if (codexec2[0][0]=='$') {
 				codexec2[0].erase(codexec2[0].begin());
@@ -1871,13 +1882,89 @@ intValue run(string code, varmap &myenv, string fname) {
 			else {
 				auto res = calculate(codexec2[1], myenv);
 				if (res.isObject) {
+					if (external_op.length()) {
+						raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
+					}
 					myenv.deserial(codexec2[0], res.str);
+				}
+				else if (external_op.length()) {
+					myenv[codexec2[0]] = primary_calculate(myenv[codexec2[0]], external_op, res, myenv);
 				}
 				else {
 					myenv[codexec2[0]] = res;
 				}
 			}
 			
+		}
+		else if (codexec[0] == "setstr") {
+			/*
+			setstr a#pos[+]=...
+			*/
+			// Just like 'set'.
+			parameter_check(2);
+			vector<string> codexec2_origin = split(codexec[1], '=', 1);
+			vector<string> codexec2;
+			int quotes = 0;
+			string tmp = "";
+			for (auto &i : codexec2_origin[0]) {
+				switch (i) {
+				case '(':
+					quotes++;
+					break;
+				case ')':
+					quotes--;
+					break;
+				case '#':
+					if (!quotes) {
+						codexec2.push_back(tmp);
+						tmp = "";
+					}
+					break;
+				default:
+					tmp += i;
+				}
+			}
+			if (!tmp.length()) {
+				raise_ce("Bad parameter for setstr");
+				goto add_exp;
+			}
+			bool do_insert = false;
+			if (tmp[tmp.length() - 1] == '+') {
+				do_insert = true;
+				tmp.pop_back();
+			}
+			codexec2.push_back(tmp);
+			if (codexec2[0][0] == '$') {
+				codexec2[0].erase(codexec2[0].begin());
+				codexec2[0] = calculate(codexec2[0], myenv).str;
+			}
+			else if (codexec2[0].find(":") != string::npos) {
+				codexec2[0] = curexp(codexec2[0], myenv);
+			}
+			intValue &intv = myenv[codexec2[0]];
+			if (intv.isNull) {
+				intv.set_str("");
+			}
+			else if (intv.isNumeric) {
+				intv.set_str(intv.str);
+			}
+			size_t dpos = codexec2[1].find('~');
+			int pos, epos;
+			if (dpos != string::npos && (!do_insert)) {		// If insert it won't work
+				vector<string> codexec3 = split(codexec2[1], '~', 1);
+				pos = calculate(codexec3[0], myenv).numeric;
+				epos = calculate(codexec3[1], myenv).numeric;
+			}
+			else {
+				pos = calculate(codexec2[1], myenv).numeric;
+				epos = pos;
+			}
+			if (intv.str.length() <= pos) {
+				raise_ce("Index out of range");
+			}
+			if (!do_insert) intv.str.erase(intv.str.begin() + pos, intv.str.begin() + epos + 1);
+			intv.str.insert(pos, calculate(codexec2_origin[1], myenv).str);
+			//intv.str[pos] = calculate(codexec2_origin[1], myenv).str[0];
 		}
 		else if (codexec[0] == "global") {	// Todo: add 'new' , 'object', 'serial', ... After varmap is changed
 		parameter_check(2);
