@@ -1,0 +1,64 @@
+﻿# Fraction library
+
+# Basic support
+function gcd x y:
+	if y=0:
+		return x
+	return gcd y,(x%y)
+
+# Will modify x,y -- they will be divided by gcd.
+function lcm x y:
+	set g=gcd x,y
+	debugger
+	set x/=g
+	set y/=g
+	return x*y*g
+	
+# value = fraction.value = .a/.b
+class fraction:
+	init:
+		set this.a=0
+		set this.b=1
+	function set a b:
+		set this.a=a
+		set this.b=b
+	function value:
+		return this.a/this.b
+	function simple:
+		set g=gcd this.a,this.b
+		set this.a/=g
+		set this.b/=g
+	function connect with:
+		set l=lcm this.b,with.b
+		set this.a*=l/this.b
+		set with.a*=l/with.b
+		set this.b=l
+		set with.b=l
+	function reverse:
+		return make_fraction this.b,this.a
+		
+function make_fraction fx fy:
+	set s=new fraction
+	s.set fx,fy
+	return s
+
+function f_add fx fy:
+	fx.connect ^fy
+	set nf=fx
+	set nf.a+=fy.a
+	return nf
+	
+function f_minus fx fy:
+	fx.connect ^fy
+	set nf=fx
+	set nf.a-=fy.a
+	return nf
+
+function f_times fx fy:
+	set fx.a*=fy.a
+	set fx.b*=fy.b
+	fx.simple
+	return fx
+	
+function f_divide fx fy:
+	return f_times fx,fy.reverse
