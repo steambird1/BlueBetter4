@@ -1465,9 +1465,8 @@ intValue calculate(string expr, varmap &vm) {
 						cur_neg = false;
 					}	// Dealing with connecting operators like ||, &&.
 					else if (!op.empty()) {	// Can't have something like &a& -> a&&
-						string top_op = op.top();
-						if (top_op.length()) {
-							switch (top_op[0]) {
+						if (i > 0 && priority(expr[i-1]) >= 0) {
+							switch (expr[i-1]) {
 							case '&':
 								if (expr[i] == '&') {
 									op.pop();
@@ -1490,9 +1489,9 @@ intValue calculate(string expr, varmap &vm) {
 								}
 								// PASSTHROUGH FOR << or <=
 							case '>':
-								if (expr[i] == '=' || expr[i] == top_op[0]) {
+								if (expr[i] == '=' || expr[i] == expr[i-1]) {
 									op.pop();
-									op.push({ top_op[0], expr[i] });
+									op.push({ expr[i-1], expr[i] });
 									goto end_of_pusher;
 								}
 								break;
@@ -2902,7 +2901,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test1.blue";
+	string code = "", file = "test4.blue";
 	in_debug = true;
 	no_lib = false;
 
