@@ -2549,17 +2549,25 @@ intValue run(string code, varmap &myenv, string fname) {
 			// Do nothing
 		}
 		else if (codexec[0] == "__dev__") {
-			if (codexec.size() >= 2 && codexec[1] == "time_set") {
-				SYSTEMTIME sys;
-				GetLocalTime(&sys);
-				myenv["this.year"] = intValue(sys.wYear);
-				myenv["this.month"] = intValue(sys.wMonth);
-				myenv["this.day"] = intValue(sys.wDay);
-				myenv["this.hour"] = intValue(sys.wHour);
-				myenv["this.minute"] = intValue(sys.wMinute);
-				myenv["this.second"] = intValue(sys.wSecond);
-				myenv["this.ms"] = intValue(sys.wMilliseconds);
-				myenv["this.week"] = intValue(sys.wDayOfWeek);
+			if (codexec.size() >= 2) {
+				if (codexec[1] == "time_set") {
+					SYSTEMTIME sys;
+					GetLocalTime(&sys);
+					myenv["this.year"] = intValue(sys.wYear);
+					myenv["this.month"] = intValue(sys.wMonth);
+					myenv["this.day"] = intValue(sys.wDay);
+					myenv["this.hour"] = intValue(sys.wHour);
+					myenv["this.minute"] = intValue(sys.wMinute);
+					myenv["this.second"] = intValue(sys.wSecond);
+					myenv["this.ms"] = intValue(sys.wMilliseconds);
+					myenv["this.week"] = intValue(sys.wDayOfWeek);
+				}
+				else if (beginWith(codexec[1], "bad_property")) {
+					vector<string> codexec2 = split(codexec[1], ' ', 1);
+					raiseError(null, myenv, fname, 0, __LINE__, "Bad use of property " + codexec2[1] + " (this might be because the method is disallowed)");
+					return null;	// For GET attempts
+				}
+				
 			}
 			else {
 				specialout();
@@ -2860,7 +2868,7 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 				parameter_check(3);
 				fun_indent = 1 + bool(curclass.length());
 				if (codexec[2][codexec[2].length() - 1] == '\n') codexec[2].pop_back();
-				codexec[2].pop_back(); // ':'
+				if (codexec[2][codexec[2].length()-1]==':') codexec[2].pop_back(); // ':'
 				//myenv[curclass + codexec[2] + ".__is_prop__"] = intValue("1");
 				myenv.set_global(curclass + codexec[2] + ".__is_prop__", intValue("1"), true);
 				if (codexec[1] == "get") {
@@ -2870,6 +2878,18 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 				else if (codexec[1] == "set") {
 					cfname = curclass + codexec[2] + ".__setter__";
 					cfargs = "value";
+				}
+				else if (codexec[1] == "noget") {
+					string tcf = curclass + codexec[2];
+					myenv.set_global(tcf, intValue("__dev__ bad_property " + tcf));
+					myenv.set_global(tcf + ".__type__", intValue("function"), true);
+					myenv.set_global(tcf + ".__arg__", intValue(""), true);
+				}
+				else if (codexec[1] == "noset") {
+					string tcf = curclass + codexec[2] + ".__setter__";
+					myenv.set_global(tcf, intValue("__dev__ bad_property " + curclass + codexec[2]));
+					myenv.set_global(tcf + ".__type__", intValue("function"), true);
+					myenv.set_global(tcf + ".__arg__", intValue("value"), true);
 				}
 				else {
 					raise_ce("Bad property");
