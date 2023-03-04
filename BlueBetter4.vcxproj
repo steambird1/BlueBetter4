@@ -129,6 +129,7 @@
     <None Include="algo.blue" />
     <None Include="bmain.blue" />
     <None Include="example.blue" />
+    <None Include="math.blue" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

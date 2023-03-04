@@ -29,5 +29,8 @@
     <None Include="algo.blue">
       <Filter>资源文件</Filter>
     </None>
+    <None Include="math.blue">
+      <Filter>资源文件</Filter>
+    </None>
   </ItemGroup>
 </Project>
