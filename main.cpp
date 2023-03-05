@@ -2939,7 +2939,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.20\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.20a\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
