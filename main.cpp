@@ -277,7 +277,7 @@ The "null" inside should be seen as 'null' (which has .isNull = true).
 // Specify what will not be copied.
 const set<string> nocopy = { ".__type__", ".__inherits__", ".__arg__", ".__must_inherit__", ".__no_inherit__" };
 // Specify what will not be lookup.
-const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_inherit__", ".__no_inherit__", ".__init__", ".__hidden__", ".__shared__" };
+const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_inherit__", ".__no_inherit__", ".__init__", ".__hidden__", ".__shared__", ".__const__", ".__is_prop__", ".__setter__" };
  class varmap {
 	public:
 		
@@ -1944,7 +1944,7 @@ intValue run(string code, varmap &myenv, string fname) {
 			for (size_t i = 0; i < result.size(); i++) {
 				myenv[codexec2[0] + "." + to_string(i)] = intValue(result[i]);
 			}
-			myenv[codexec2[0] + ".length"] = intValue(result.size());
+			myenv[codexec2[0] + "._length"] = intValue(result.size());	// According to updated property
 }
 #pragma endregion
 			else {
@@ -2503,7 +2503,7 @@ intValue run(string code, varmap &myenv, string fname) {
 						string &cn = codexec3[0];
 						//myenv[cn + ".__type__"] = "list";
 						generateClass(cn, "list", myenv, false);	// Accerlation
-						myenv[cn + ".length"] = intValue(len);
+						myenv[cn + "._length"] = intValue(len);			// For property
 						for (size_t i = 0; i < len; i++) {
 							myenv[cn + "." + to_string(i)] = intValue(int(buf[i]));
 						}
@@ -2526,7 +2526,7 @@ intValue run(string code, varmap &myenv, string fname) {
 						}
 						string &cn = codexec4[1];
 						if (inh_map.is_same(myenv[cn + ".__type__"].str, "list")) {
-							long64 clen = myenv[cn + ".length"].numeric;
+							long64 clen = myenv[cn + "._length"].numeric;
 							char *buf = new char[clen + 2];
 							for (size_t i = 0; i < clen; i++) {
 								buf[i] = char((myenv[cn + "." + to_string(i)].numeric));
