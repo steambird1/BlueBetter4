@@ -2660,8 +2660,7 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 		return null;
 	};
 	intcalls["system"] = [](string args, varmap &env) -> intValue {
-		system(calculate(args, env).str.c_str());
-		return null;
+		return intValue(system(calculate(args, env).str.c_str()));
 	};
 	intcalls["exit"] = [](string args, varmap &env) -> intValue {
 		exit(int(calculate(args, env).numeric));
@@ -2785,6 +2784,9 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 								fgets(buf1, 65536, f);
 								codestream.push_back(buf1);
 							}
+						}
+						else {
+							raise_ce(string("Bad import: ") + codexec2[1]);
 						}
 					}
 				}
