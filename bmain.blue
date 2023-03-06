@@ -192,6 +192,14 @@ class dict:
 function typeof obj:
 	return obj.__type__
 
+# To consider normal types
+function isobj obj:
+	return not (isnull obj.__type__)
+
+function isint var:
+	set temp=__is_int var
+	return temp
+
 function inheritanceof first second:
 	set temp=__inheritanceof first,second
 	return temp

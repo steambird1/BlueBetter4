@@ -1898,7 +1898,13 @@ intValue run(string code, varmap &myenv, string fname) {
 			else if (codexec2[1] == "__random") {
 				myenv[codexec2[0]] = intValue(random());
 			}
+			else if (beginWith(codexec2[1], "__is_int")) {
+				vector<string> codexec3 = split(codexec2[1], ' ', 1);
+				intValue rsz = calculate(codexec3[1], myenv);
+				myenv[codexec2[0]] = intValue(rsz.isNumeric);
+			}
 			else if (beginWith(codexec2[1], "__typeof")) {	// Not necessary any longer
+			raise_ce("__typeof is deprecated. You shouldn't use it anymore. Please use obj.__type__ or typeof obj.");
 			vector<string> codexec3 = split(codexec2[1], ' ', 1);
 			parameter_check3(2, "Operator number");
 			if (codexec3[1].find(':') != string::npos) {
