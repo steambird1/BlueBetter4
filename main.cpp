@@ -227,7 +227,7 @@ struct intValue {
 
 } null, trash;	// trash: Return if incorrect varmap[] is called.
 
-#define raise_ce(description) raiseError(null, myenv, fname, execptr, __LINE__, description)
+#define raise_ce(description) raiseError(null, myenv, fname, execptr + 1, __LINE__, description)
 #define raise_varmap_ce(description) raiseError(null, *this, "Runtime", 0, __LINE__, description)
 #define raise_gv_ce(description) raiseError(null, vm, "Runtime", 0, __LINE__, description);
 
@@ -2570,7 +2570,7 @@ intValue run(string code, varmap &myenv, string fname) {
 				}
 				else if (beginWith(codexec[1], "bad_property")) {
 					vector<string> codexec2 = split(codexec[1], ' ', 1);
-					raiseError(null, myenv, fname, 0, __LINE__, "Bad use of property " + codexec2[1] + " (this might be because the method is disallowed)");
+					raiseError(null, myenv, fname, execptr + 1, __LINE__, "Bad use of property " + codexec2[1] + " (this might be because the method is disallowed)");
 					return null;	// For GET attempts
 				}
 				
@@ -2652,7 +2652,7 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 	myenv.set_global("false", intValue(0), true);
 	// Replacable:
 	myenv.set_global("err.__type__", intValue("exception"));			// Error information
-	myenv.set_global("__error_handler__", intValue("call set_color,14\nprint err.description+LF+err.value+LF\ncall set_color,7"));	// Preset error handler
+	myenv.set_global("__error_handler__", intValue("call set_color,14\nprint \"On \"+err.source+\", Line \"+err.line+LF+err.description+LF+err.value+LF\ncall set_color,7"));	// Preset error handler
 	// End of replacable
 	myenv.set_global("__file__", intValue(env_name), true);
 	// Insert more global variable
@@ -2945,7 +2945,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.20a\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.21\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
