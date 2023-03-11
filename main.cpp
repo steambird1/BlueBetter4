@@ -1077,7 +1077,7 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 					nvm[array_arg + dots + to_string(arg.size())] = null;
 					external = 1;
 				}
-				nvm[array_arg + dots + "length"] = intValue(arg.size() + external);
+				nvm[array_arg + dots + "_length"] = intValue(arg.size() + external);
 			}
 			if (set_this.length()) nvm.set_this(&vm, set_this);
 			if (set_no_this) {
