@@ -15,11 +15,13 @@
 #include <windows.h>
 #include <ctime>
 #include <cmath>
+#include <thread>
+#include <mutex>
 using namespace std;
 
 // To symbol if it's next statement, not next progress
 bool np = false, spec_ovrd = false;
-int __spec = 0;
+thread_local int __spec = 0;
 
 // Open if not use bmain.blue
 bool no_lib = false;
@@ -30,7 +32,7 @@ struct intValue;
 intValue run(string code, varmap &myenv, string fname);
 intValue calculate(string expr, varmap &vm);
 void raiseError(intValue raiseValue, varmap &myenv, string source_function = "Unknown source", size_t source_line = 0, double error_id = 0, string error_desc = "");
-intValue getValue(string single_expr, varmap &vm, bool save_quote = false);
+intValue getValue(string single_expr, varmap &vm, bool save_quote = false, int multithreading = -1);
 
 HANDLE stdouth;
 DWORD precolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN, nowcolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;
@@ -59,7 +61,7 @@ inline void curlout() {
 
 const int max_indent = 65536;
 
-char buf0[255], buf01[255], buf1[65536];
+thread_local char buf0[255], buf01[255], buf1[65536];
 bool in_debug = false;	// Runner debug option.
 //set<size_t> breakpoints;
 vector<string> watches;
@@ -225,7 +227,8 @@ struct intValue {
 		return false;
 	}
 
-} null, trash;	// trash: Return if incorrect varmap[] is called.
+} null;
+thread_local intValue trash;	// trash: Return if incorrect varmap[] is called.
 
 #define raise_ce(description) raiseError(null, myenv, fname, execptr + 1, __LINE__, description)
 #define raise_varmap_ce(description) raiseError(null, *this, "Runtime", 0, __LINE__, description)
@@ -310,15 +313,25 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			string origin_name;
 			varmap *source;
 		};
-
 		varmap() {
 
 		}
+		varmap(const varmap &others) {
+			copy_from(others);
+		}
+		void copy_from(const varmap &source) {
+			this->vs = source.vs;
+			this->ref = source.ref;
+		}
 		void push() {
+			wait_for_perm();
 			vs.push_back(single_mapper());
+			release_perm();
 		}
 		void pop() {
+			wait_for_perm();
 			if (vs.size()) vs.pop_back();
+			release_perm();
 		}
 		bool count(string key) {
 			if (!key.length()) return false;
@@ -337,6 +350,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 		// Before call THIS check it
 		// return TRUE if success or FALSE if fail £¨Unused currently)
 		bool set_referrer(string here_name, referrer ref) {
+			wait_for_perm();
 			// As a template, replace others ...
 			size_t last_pos = here_name.find_last_of('.');
 			vector<string> spls = { here_name.substr(0, last_pos), "" };
@@ -351,6 +365,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			else {
 				this->ref[here_name] = ref;
 			}
+			release_perm();
 			return true;
 		}
 		void set_referrer(string here_name, string origin_name, varmap *origin) {
@@ -362,9 +377,12 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			return ref.count(here_name);
 		}
 		void clean_referrer(string here_name) {
+			wait_for_perm();
 			if (have_referrer(here_name)) ref.erase(here_name);
+			release_perm();
 		}
 		// If return object serial, DON'T MODIFY IT !
+		// TODO: Add lock for it?
 		value_type& operator[](string key) {
 #pragma region Debug Purpose
 			//cout << "Require key: " << key << endl;
@@ -375,7 +393,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			}
 			// Find where it is
 			bool is_sharing = false;
-			if (key != "__is_sharing__" && this->operator[]("__is_sharing__").str == "1") {
+			if (vs[0]["__is_sharing__"].str == "1") {
 				is_sharing = true;
 			}
 			if (key == "this" || (key.substr(0, 5) == "this.")) {
@@ -503,7 +521,9 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			return vector<value_type>();
 		}
 		void deserial(string name, string serial) {
+			wait_for_perm();
 			if (!beginWith(serial, mymagic)) {
+				release_perm();
 				return;
 			}
 			serial = serial.substr(mymagic.length());
@@ -514,9 +534,12 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 				(*this)[name + itemspl[0]] = getValue(itemspl[1], *this);
 			}
 			(*this)[name] = null;
+			release_perm();
 		}
 		void global_deserial(string name, string serial) {
+			wait_for_perm();
 			if (!beginWith(serial, mymagic)) {
+				release_perm();
 				return;
 			}
 			serial = serial.substr(mymagic.length());
@@ -527,10 +550,13 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 				this->set_global(name + itemspl[0], getValue(itemspl[1], *this));
 			}
 			this->set_global(name, null);
+			release_perm();
 		}
 		void tree_clean(string name) {
+			wait_for_perm();
 			if (have_referrer(name)) {
 				this->clean_referrer(name);
+				release_perm();
 				return;
 			}
 				// Clean in my tree.
@@ -547,9 +573,11 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 						for (auto &j : to_delete) {
 							i->erase(j);
 						}
+						release_perm();
 						return;
 					}
 				}
+				release_perm();	// Do it in the end
 		}
 		void transform_referrer_from(string here_name, varmap &transform_from, string transform_from_referrer) {
 			if (!transform_from.have_referrer(transform_from_referrer)) return;
@@ -568,7 +596,9 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			return glob_vs[key];
 		}
 		void declare(string key) {
+			wait_for_perm();
 			vs[vs.size() - 1][key] = null;
+			release_perm();
 		}
 		void set_this(varmap *source, string name) {
 			set_referrer("this", name, source);
@@ -602,7 +632,7 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 			cout << "*** END OF DUMP ***" << endl;
 			endout();
 		}
-		static void copy_inherit(string from, string dest) {
+		static void copy_inherit(string from, string dest) {	// Not required, only use when single-thread preRun
 			while (from[from.length() - 1] == '\n') from.pop_back();
 			while (dest[dest.length() - 1] == '\n') dest.pop_back();
 			for (auto &i : glob_vs) {
@@ -627,6 +657,16 @@ const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 		const string mygenerate = "__generate_";
 		const set<string> unserial = { "", "function", "class", "null" };
 private:
+
+	mutex thread_protect;
+	// Only use if modify it
+	void wait_for_perm() {
+		thread_protect.lock();
+	}
+	void release_perm() {
+		thread_protect.unlock();
+	}
+
 	vector<value_type> get_member_from(single_mapper &obj, string name, bool force_show = false) {
 		vector<value_type> result;
 		string mytype = (*this)[name + ".__type__"].str;
@@ -722,6 +762,19 @@ private:
 };
 
 map<string, varmap::value_type> varmap::glob_vs;
+
+// For mutex and thread support
+// mutex: mutex make/wait/release [name]
+map<string, mutex> mutex_table;
+// thread: thread new container=function; thread join container; thread detach container; thread status receiver=container
+map<int, thread> thread_table;
+
+enum thread_status {
+	unknown = -999,
+	not_exist = -1,
+	not_joinable = 0,
+	joinable = 1
+};
 
 void raiseError(intValue raiseValue, varmap &myenv, string source_function, size_t source_line, double error_id, string error_desc) {
 	if (source_function == "__error_handler__") {
@@ -824,7 +877,8 @@ inline string auto_curexp(string exp, varmap &myenv) {
 }
 
 // If save_quote, formatting() will not process anything inside quote.
-intValue getValue(string single_expr, varmap &vm, bool save_quote) {
+// If multithreading, run() will be async and the function WILL RETURN NULL (since I don't "promise").
+intValue getValue(string single_expr, varmap &vm, bool save_quote, int multithreading) {
 	if (single_expr == "null" || single_expr == "") return null;
 	// Remove any '(' in front
 	while (single_expr.length() && single_expr[0] == '(') {
@@ -1090,13 +1144,23 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote) {
 			if (vm[spl[0]].isNull || s.length() == 0) {
 				raise_gv_ce(string("Warning: Call of null function ") + spl[0]);
 			}
-			__spec++;
-			auto r = run(s, nvm, spl[0]);
-			__spec--;
-			if (r.isNumeric && neg < 0) {
-				r = intValue(-r.numeric);
+			if (multithreading >= 0) {
+				__spec++;
+				thread_table[multithreading] = thread([](string s, varmap nvm, string spls) {run(s, nvm, spls); }, s, nvm, spl[0]);	// CAN'T WRITE THIS
+				thread_table[multithreading].detach();
+				__spec--;
+				return null;
 			}
-			return r;
+			else {
+				__spec++;
+				auto r = run(s, nvm, spl[0]);
+				__spec--;
+				if (r.isNumeric && neg < 0) {
+					r = intValue(-r.numeric);
+				}
+				return r;
+			}
+			
 		}
 		else {
 			auto r = vm[spl[0]];
@@ -2586,6 +2650,106 @@ intValue run(string code, varmap &myenv, string fname) {
 			}
 			
 		}
+		else if (codexec[0] == "mutex") {
+			vector<string> codexec2 = split(codexec[1], ' ', 1), codexec3;
+			parameter_check(2);
+			parameter_check2(2, "mutex");
+			if (codexec2[0] == "test") {
+				// mutex test receiver=name
+				codexec3 = split(codexec2[1], '=', 1);
+				if (codexec3[0][0] == '$') {
+					codexec3[0].erase(codexec3[0].begin());
+					codexec3[0] = calculate(codexec3[0], myenv).str;
+				}
+				else if (codexec3[0].find(":") != string::npos) {
+					codexec3[0] = curexp(codexec3[0], myenv);
+				}
+				myenv[codexec3[0]] = intValue(mutex_table.count(calculate(codexec3[1], myenv).str));
+			}
+			else {
+				string mutex_name = calculate(codexec2[1], myenv).str;
+				if (codexec2[0] == "make") {
+					mutex_table[mutex_name];
+				}
+				else if (codexec2[0] == "wait") {
+					mutex_table[mutex_name].lock();
+				}
+				else if (codexec2[0] == "release") {
+					mutex_table[mutex_name].unlock();
+				}
+			}
+		}
+		else if (codexec[0] == "thread") {
+			vector<string> codexec2 = split(codexec[1], ' ', 1), codexec3;
+			parameter_check(2);
+			parameter_check2(2, "thread");
+			if (codexec2[0] == "test" || codexec2[0] == "new") {
+				
+				// mutex test receiver=name
+				codexec3 = split(codexec2[1], '=', 1);
+				if (codexec3[0][0] == '$') {
+					codexec3[0].erase(codexec3[0].begin());
+					codexec3[0] = calculate(codexec3[0], myenv).str;
+				}
+				else if (codexec3[0].find(":") != string::npos) {
+					codexec3[0] = curexp(codexec3[0], myenv);
+				}
+				if (codexec2[0] == "test") {
+					int cid = calculate(codexec3[1], myenv).numeric;
+					thread_status result = thread_status::unknown;
+					if (thread_table.count(cid)) {
+						thread &t = thread_table[cid];
+						if (t.joinable()) {
+							result = thread_status::joinable;
+						}
+						else {
+							result = thread_status::not_joinable;
+						}
+					}
+					else {
+						result = thread_status::not_exist;
+					}
+					myenv[codexec3[0]] = intValue(result);
+				}
+				else {
+					parameter_check3(2, "thread");
+					
+					int n = 0;
+					while (thread_table.count(++n));
+					/*size_t spl = codexec3[1].find(' ');
+					if (spl < codexec3[1].length() - 1) {
+						string args = codexec3[1].substr(spl + 1);
+					}*/
+					/*string code_text = codexec3[1];
+					thread_table[n] = thread([code_text, &myenv]() {
+						calculate(code_text, myenv);
+					});
+					thread_table[n].detach();
+					*/
+					getValue(codexec3[1], myenv, false, n);
+					
+				}
+				
+			}
+			else {
+				// mutex join/detach var
+				if (codexec2[0] == "join") {
+					int cid = calculate(codexec2[1], myenv).numeric;
+					if (thread_table.count(cid)) {
+						auto &t = thread_table[cid];
+						if (t.joinable()) t.join();
+						else raise_ce("Cannot join current thread");
+					}
+				}
+				else if (codexec2[0] == "detach") {
+					int cid = calculate(codexec2[1], myenv).numeric;
+					if (thread_table.count(cid)) {
+						auto &t = thread_table[cid];
+						t.detach();
+					}
+				}
+			}
+		}
 		else if (codexec[0] == "import") {
 			// Do nothing
 		}
@@ -2697,7 +2861,8 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 #pragma endregion
 #pragma region Preset calls
 	intcalls["sleep"] = [](string args, varmap &env) -> intValue {
-		Sleep(DWORD(calculate(args, env).numeric));
+		//Sleep(DWORD(calculate(args, env).numeric));
+		this_thread::sleep_for(chrono::milliseconds((long long)calculate(args, env).numeric));
 		return null;
 	};
 	intcalls["system"] = [](string args, varmap &env) -> intValue {
@@ -3039,7 +3204,7 @@ int main(int argc, char* argv[]) {
 	in_debug = false;
 	no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.21\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.22\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
