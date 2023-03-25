@@ -2754,6 +2754,7 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 	else {
 		env_dir = env_name.substr(0, p) + '\\';
 	}
+	//bool bmain_fail = false;
 	vector<string> codestream;
 	// Initalize libraries right here
 	FILE *f = fopen("bmain.blue", "r");
@@ -2762,8 +2763,13 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 			fgets(buf1, 65536, f);
 			codestream.push_back(buf1);
 		}
+		fclose(f);
 	}
-	fclose(f);
+	else if (!no_lib) {
+		size_t execptr = 0;	// For ce-raising
+		raise_ce("You don't have bmain.blue, which is required! To prevent this, copy bmain.blue under program directory or use --no-lib.");
+	}
+	
 	// End
 
 	vector<string> sc = split(code, '\n', -1, '\"', '\\', true);
@@ -3038,6 +3044,9 @@ int main(int argc, char* argv[]) {
 			}
 
 
+		}
+		else if (opt == "--no-lib") {
+			no_lib = true;
 		}
 	}
 #pragma endregion
