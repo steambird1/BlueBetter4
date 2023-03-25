@@ -1626,59 +1626,6 @@ size_t getLength(int fid) {
 	return res;
 }
 
-// Make it become a lambda, since we'll use it in preRun
-auto global_processor = [](vector<string> &codexec, varmap &myenv, string fname = "Prerun global setter", size_t execptr = 0) {
-	bool constant = false;
-	parameter_check(2);
-	vector<string> codexec2 = split(codexec[1], '=', 1);	// May be global a=const ...
-	parameter_check2(2, "set");
-	if (codexec2[0][0] == '$') {
-		codexec2[0].erase(codexec2[0].begin());
-		codexec2[0] = calculate(codexec2[0], myenv).str;
-	}
-	else if (codexec2[0].find(":") != string::npos) {
-		codexec2[0] = curexp(codexec2[0], myenv);
-	}
-	static const string const_sign = "const ";	// set a=const ...
-	if (beginWith(codexec2[1], const_sign)) {
-		constant = true;
-		codexec2[1] = codexec2[1].substr(const_sign.length());
-	}
-	char det;
-	string external_op = "", &czero = codexec2[0];
-	// Only 2 layers' detect, reversely
-	if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
-		external_op = det;
-		czero.pop_back();
-		if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
-			external_op = det + external_op;
-			czero.pop_back();
-		}
-	}
-	// Should be like:
-	// myenv[codexec2[0]] = primary_calculate(myenv[codexec2[0]], external_op, res, myenv);
-	if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
-		raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
-		return;	// Since it's a lambda...
-	}
-	auto res = calculate(codexec2[1], myenv);
-	if (res.isObject) {
-		if (external_op.length()) {
-			raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
-		}
-		myenv.global_deserial(codexec2[0], res.str);
-		if (constant) {
-			myenv.set_global(codexec2[0] + ".__const__", intValue("1"));
-		}
-	}
-	else if (external_op.length()) {
-		myenv.set_global(codexec2[0], primary_calculate(myenv.get_global(codexec2[0]), external_op, res, myenv), constant);
-	}
-	else {
-		myenv.set_global(codexec2[0], res, constant);
-	}
-};
-
 // This 'run' will skip ALL class and function declarations.
 // Provided environment should be pushed.
 intValue run(string code, varmap &myenv, string fname) {
@@ -2167,7 +2114,55 @@ intValue run(string code, varmap &myenv, string fname) {
 			//intv.str[pos] = calculate(codexec2_origin[1], myenv).str[0];
 		}
 		else if (codexec[0] == "global") {
-			global_processor(codexec, myenv, fname, execptr);
+		bool constant = false;
+		parameter_check(2);
+		vector<string> codexec2 = split(codexec[1], '=', 1);	// May be global a=const ...
+		parameter_check2(2, "set");
+		if (codexec2[0][0] == '$') {
+			codexec2[0].erase(codexec2[0].begin());
+			codexec2[0] = calculate(codexec2[0], myenv).str;
+		}
+		else if (codexec2[0].find(":") != string::npos) {
+			codexec2[0] = curexp(codexec2[0], myenv);
+		}
+		static const string const_sign = "const ";	// set a=const ...
+		if (beginWith(codexec2[1], const_sign)) {
+			constant = true;
+			codexec2[1] = codexec2[1].substr(const_sign.length());
+		}
+		char det;
+		string external_op = "", &czero = codexec2[0];
+		// Only 2 layers' detect, reversely
+		if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+			external_op = det;
+			czero.pop_back();
+			if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+				external_op = det + external_op;
+				czero.pop_back();
+			}
+		}
+		// Should be like:
+		// myenv[codexec2[0]] = primary_calculate(myenv[codexec2[0]], external_op, res, myenv);
+		if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
+			raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
+			return null;
+		}
+		auto res = calculate(codexec2[1], myenv);
+		if (res.isObject) {
+			if (external_op.length()) {
+				raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
+			}
+			myenv.global_deserial(codexec2[0], res.str);
+			if (constant) {
+				myenv.set_global(codexec2[0] + ".__const__", intValue("1"));
+			}
+		}
+		else if (external_op.length()) {
+			myenv.set_global(codexec2[0], primary_calculate(myenv.get_global(codexec2[0]), external_op, res, myenv), constant);
+		}
+		else {
+			myenv.set_global(codexec2[0], res, constant);
+		}
 		}
 		else if (codexec[0] == "if" || codexec[0] == "elif") {
 			parameter_check(2);
@@ -2845,7 +2840,55 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 				}
 				else if (codexec[0] == "preset") {
 					// Instead of 'global', use 'preset' for preRun-segment global variables!
-					global_processor(codexec, myenv, fname, execptr);
+					bool constant = false;
+					parameter_check(2);
+					vector<string> codexec2 = split(codexec[1], '=', 1);	// May be global a=const ...
+					parameter_check2(2, "set");
+					if (codexec2[0][0] == '$') {
+						codexec2[0].erase(codexec2[0].begin());
+						codexec2[0] = calculate(codexec2[0], myenv).str;
+					}
+					else if (codexec2[0].find(":") != string::npos) {
+						codexec2[0] = curexp(codexec2[0], myenv);
+					}
+					static const string const_sign = "const ";	// set a=const ...
+					if (beginWith(codexec2[1], const_sign)) {
+						constant = true;
+						codexec2[1] = codexec2[1].substr(const_sign.length());
+					}
+					char det;
+					string external_op = "", &czero = codexec2[0];
+					// Only 2 layers' detect, reversely
+					if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+						external_op = det;
+						czero.pop_back();
+						if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+							external_op = det + external_op;
+							czero.pop_back();
+						}
+					}
+					// Should be like:
+					// myenv[codexec2[0]] = primary_calculate(myenv[codexec2[0]], external_op, res, myenv);
+					if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
+						raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
+						return null;
+					}
+					auto res = calculate(codexec2[1], myenv);
+					if (res.isObject) {
+						if (external_op.length()) {
+							raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
+						}
+						myenv.global_deserial(codexec2[0], res.str);
+						if (constant) {
+							myenv.set_global(codexec2[0] + ".__const__", intValue("1"));
+						}
+					}
+					else if (external_op.length()) {
+						myenv.set_global(codexec2[0], primary_calculate(myenv.get_global(codexec2[0]), external_op, res, myenv), constant);
+					}
+					else {
+						myenv.set_global(codexec2[0], res, constant);
+					}
 				}
 				else if (codexec[0] == "error_handler:") {
 					fun_indent = 1;
