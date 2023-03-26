@@ -22,6 +22,7 @@ using namespace std;
 // To symbol if it's next statement, not next progress
 bool np = false, spec_ovrd = false;
 thread_local int __spec = 0;
+vector<string> include_sources;
 
 // Open if not use bmain.blue
 bool no_lib = false;
@@ -2914,6 +2915,7 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 	else {
 		env_dir = env_name.substr(0, p) + '\\';
 	}
+	include_sources.insert(include_sources.begin(), env_dir);	// search at first
 	//bool bmain_fail = false;
 	vector<string> codestream;
 	// Initalize libraries right here
@@ -2991,14 +2993,20 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 					}
 					else {
 						// TODO: Add more scanner for BluePage or others' support
-						f = fopen((env_dir + codexec2[1]).c_str(), "r");
-						if (f != NULL) {
-							while (!feof(f)) {
-								fgets(buf1, 65536, f);
-								codestream.push_back(buf1);
+						bool suc_flag = false;
+						for (auto &i : include_sources) {
+							f = fopen((i + codexec2[1]).c_str(), "r");
+							if (f != NULL) {
+								while (!feof(f)) {
+									fgets(buf1, 65536, f);
+									codestream.push_back(buf1);
+								}
+								fclose(f);
+								suc_flag = true;
+								break;
 							}
 						}
-						else {
+						if (!suc_flag) {
 							raise_ce(string("Bad import: ") + codexec2[1]);
 						}
 					}
@@ -3252,6 +3260,16 @@ int main(int argc, char* argv[]) {
 			}
 
 
+		}
+		else if (beginWith(opt, "--include-from:")) {
+			vector<string> spl = split(opt, ':', 1);
+			if (spl.size() < 2) {
+				curlout();
+				cout << "Error: Bad format of --include-from option" << endl;
+				endout();
+				return 1;
+			}
+			include_sources.push_back(spl[1]);
 		}
 		else if (opt == "--no-lib") {
 			no_lib = true;
