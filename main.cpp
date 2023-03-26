@@ -3122,8 +3122,12 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 				// Instead of 'global', use 'preset' for preRun-segment global variables!
 				bool constant = false;
 				parameter_check(2);
+				while (codexec[1][codexec[1].length() - 1] == '\n') codexec[1].pop_back();
 				string data = codexec[1];
-				if (codexec.size() >= 3) data = data + ' ' + codexec[2];
+				if (codexec.size() >= 3) {
+					while (codexec[2][codexec[2].length() - 1] == '\n') codexec[2].pop_back();
+					data = data + ' ' + codexec[2];
+				}
 				vector<string> codexec2 = split(data, '=', 1);	// May be global a=const ...
 				parameter_check2(2, "set");
 				if (codexec2[0][0] == '$') {
