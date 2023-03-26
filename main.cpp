@@ -2736,7 +2736,7 @@ intValue run(string code, varmap &myenv, string fname) {
 					});
 					thread_table[n].detach();
 					*/
-					myenv[codexec[0]] = intValue(n);
+					myenv[codexec3[0]] = intValue(n);
 					getValue(codexec3[1], myenv, false, n);
 					
 				}
