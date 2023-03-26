@@ -2176,10 +2176,11 @@ intValue run(string code, varmap &myenv, string fname) {
 			}
 			if (intv.str.length() <= pos) {
 				raise_ce("Index out of range");
-			}
-			if (!do_insert) intv.str.erase(intv.str.begin() + pos, intv.str.begin() + epos + 1);
+			}	// can't use intv since it will be changed soon
 			auto cres = calculate(codexec2_origin[1], myenv).str;
-			intv.str.insert(pos, cres);
+			if (!do_insert) myenv[codexec2[0]].str.erase(myenv[codexec2[0]].str.begin() + pos, myenv[codexec2[0]].str.begin() + epos + 1);
+			// Can we?
+			myenv[codexec2[0]].str.insert(pos, cres);
 			//intv.str[pos] = calculate(codexec2_origin[1], myenv).str[0];
 		}
 		else if (codexec[0] == "global") {
