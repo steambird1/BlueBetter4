@@ -1403,7 +1403,6 @@ intValue primary_calculate(intValue first, string op, intValue second, varmap &v
 #undef if_have_additional_op
 }
 
-// Code must be checked
 intValue calculate(string expr, varmap &vm) {
 	if (expr.length() == 0) return null;
 	stack<string> op;
@@ -1456,7 +1455,7 @@ intValue calculate(string expr, varmap &vm) {
 			if (expr[i] == '(') {
 				// Here should be operator previously.
 				int t = 1;
-				while (int(i)-t>0 && expr[i - t] == '(') t++;
+				while (int(i) - t > 0 && expr[i - t] == '(') t++;
 				if ((i == 0 || priority(expr[i - t]) >= 0) && (!ignore)) {
 					op.push("(");
 				}
@@ -1491,7 +1490,7 @@ intValue calculate(string expr, varmap &vm) {
 					ignore--;
 					operand += expr[i];
 				}
-				
+
 			}
 			else if (ignore <= 0) {
 				// May check here.
@@ -1533,8 +1532,8 @@ intValue calculate(string expr, varmap &vm) {
 						cur_neg = false;
 					}	// Dealing with connecting operators like ||, &&.
 					else if (!op.empty()) {	// Can't have something like &a& -> a&&
-						if (i > 0 && priority(expr[i-1]) >= 0) {
-							switch (expr[i-1]) {
+						if (i > 0 && priority(expr[i - 1]) >= 0) {
+							switch (expr[i - 1]) {
 							case '&':
 								if (expr[i] == '&') {
 									op.pop();
@@ -1557,9 +1556,9 @@ intValue calculate(string expr, varmap &vm) {
 								}
 								// PASSTHROUGH FOR << or <=
 							case '>':
-								if (expr[i] == '=' || expr[i] == expr[i-1]) {
+								if (expr[i] == '=' || expr[i] == expr[i - 1]) {
 									op.pop();
-									op.push({ expr[i-1], expr[i] });
+									op.push({ expr[i - 1], expr[i] });
 									goto end_of_pusher;
 								}
 								break;
@@ -1569,7 +1568,7 @@ intValue calculate(string expr, varmap &vm) {
 						}
 					}
 					auto_pop(my_pr);
-					op.push(string({expr[i]}));
+					op.push(string({ expr[i] }));
 					operand = "";
 				end_of_pusher:;
 				}
@@ -1577,9 +1576,9 @@ intValue calculate(string expr, varmap &vm) {
 			else {
 				operand += expr[i];
 			}
-			
+
 		}
-		else if (i > 0 && expr[i] == '.' && expr[i-1] == ')') {
+		else if (i > 0 && expr[i] == '.' && expr[i - 1] == ')') {
 			// Should have operand clear. Dealling with non-operator '.'
 			auto obj = val.top();
 			if (obj.isObject) {
@@ -2153,7 +2152,11 @@ intValue run(string code, varmap &myenv, string fname) {
 			else if (codexec2[0].find(":") != string::npos) {
 				codexec2[0] = curexp(codexec2[0], myenv);
 			}
-			intValue &intv = myenv[codexec2[0]];
+			if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
+				raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
+				goto add_exp;
+			}
+			auto &intv = myenv[codexec2[0]];
 			if (intv.isNull) {
 				intv.set_str("");
 			}
@@ -2175,7 +2178,8 @@ intValue run(string code, varmap &myenv, string fname) {
 				raise_ce("Index out of range");
 			}
 			if (!do_insert) intv.str.erase(intv.str.begin() + pos, intv.str.begin() + epos + 1);
-			intv.str.insert(pos, calculate(codexec2_origin[1], myenv).str);
+			auto cres = calculate(codexec2_origin[1], myenv).str;
+			intv.str.insert(pos, cres);
 			//intv.str[pos] = calculate(codexec2_origin[1], myenv).str[0];
 		}
 		else if (codexec[0] == "global") {
@@ -2189,6 +2193,10 @@ intValue run(string code, varmap &myenv, string fname) {
 		}
 		else if (codexec2[0].find(":") != string::npos) {
 			codexec2[0] = curexp(codexec2[0], myenv);
+		}
+		if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
+			raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
+			goto add_exp;
 		}
 		static const string const_sign = "const ";	// set a=const ...
 		if (beginWith(codexec2[1], const_sign)) {
@@ -3138,44 +3146,50 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 					codexec2[0] = curexp(codexec2[0], myenv);
 				}
 				codexec2[0] = curclass + codexec2[0];
-				static const string const_sign = "const ";	// set a=const ...
-				if (beginWith(codexec2[1], const_sign)) {
-					constant = true;
-					codexec2[1] = codexec2[1].substr(const_sign.length());
-				}
-				char det;
-				string external_op = "", &czero = codexec2[0];
-				// Only 2 layers' detect, reversely
-				if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
-					external_op = det;
-					czero.pop_back();
-					if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
-						external_op = det + external_op;
-						czero.pop_back();
-					}
-				}
-				// Should be like:
-				// myenv[codexec2[0]] = primary_calculate(myenv[codexec2[0]], external_op, res, myenv);
 				if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
-					raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
-					return null;
-				}
-				auto res = calculate(codexec2[1], myenv);
-				if (res.isObject) {
-					if (external_op.length()) {
-						raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
-					}
-					myenv.global_deserial(codexec2[0], res.str);
-					if (constant) {
-						myenv.set_global(codexec2[0] + ".__const__", intValue("1"));
-					}
-				}
-				else if (external_op.length()) {
-					myenv.set_global(codexec2[0], primary_calculate(myenv.get_global(codexec2[0]), external_op, res, myenv), constant);
+					raise_ce(string("Cannot set a value of constant: ") + codexec2[0] + " (this could be because of a redeclaration)");
 				}
 				else {
-					myenv.set_global(codexec2[0], res, constant);
+					static const string const_sign = "const ";	// set a=const ...
+					if (beginWith(codexec2[1], const_sign)) {
+						constant = true;
+						codexec2[1] = codexec2[1].substr(const_sign.length());
+					}
+					char det;
+					string external_op = "", &czero = codexec2[0];
+					// Only 2 layers' detect, reversely
+					if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+						external_op = det;
+						czero.pop_back();
+						if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+							external_op = det + external_op;
+							czero.pop_back();
+						}
+					}
+					// Should be like:
+					// myenv[codexec2[0]] = primary_calculate(myenv[codexec2[0]], external_op, res, myenv);
+					if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
+						raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
+						return null;
+					}
+					auto res = calculate(codexec2[1], myenv);
+					if (res.isObject) {
+						if (external_op.length()) {
+							raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
+						}
+						myenv.global_deserial(codexec2[0], res.str);
+						if (constant) {
+							myenv.set_global(codexec2[0] + ".__const__", intValue("1"));
+						}
+					}
+					else if (external_op.length()) {
+						myenv.set_global(codexec2[0], primary_calculate(myenv.get_global(codexec2[0]), external_op, res, myenv), constant);
+					}
+					else {
+						myenv.set_global(codexec2[0], res, constant);
+					}
 				}
+				
 			}
 
 		}
