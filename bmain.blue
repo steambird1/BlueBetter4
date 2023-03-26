@@ -273,8 +273,12 @@ function floor num:
 	return temp
 
 function ceil num:
-	set temp=__intg num+0.5
-	return temp
+	set cmp=__intg num
+	if cmp=num:
+		return num
+	else:
+		set temp=__intg num+1
+		return temp
 
 function time:
 	set temp=__time
@@ -337,8 +341,7 @@ function sqrt x:
 	call res=_maths_sqrt,x
 	return res
 
-function pi:
-	return acos 0.5*3
+preset pi=const acos 0.5*3
 
 function trim x:
 	call res=_trim,x
