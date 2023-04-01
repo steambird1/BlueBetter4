@@ -1175,9 +1175,13 @@ intValue getValue(string single_expr, varmap &vm, bool save_quote, int multithre
 }
 
 // Single ones must have the same as multi ones.
-int priority(char op) {
+// extras: Indicate if it work as extra operator (used in 'set', 'global' and maybe 'preset').
+int priority(char op, bool extras = false) {
 	switch (op) {
-	case ')': case ':':	// Must make sure ':' has the most priority
+	case ')': 
+		if (extras) return -1;
+	case ':':	// PASSTHROUGH
+		// Must make sure ':' has the most priority
 		return 7;
 		break;
 	case '#':
@@ -1206,9 +1210,9 @@ int priority(char op) {
 	}
 }
 
-int priority(string op) {
+int priority(string op, bool extras = false) {
 	if (!op.length()) return -1;
-	return priority(op[0]);
+	return priority(op[0], extras);
 }
 
 typedef long long							long64;
@@ -1820,10 +1824,10 @@ intValue run(string code, varmap &myenv, string fname) {
 			}
 			char det;
 			// Only 2 layers' detect, reversely
-			if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+			if (czero.length() >= 2 && priority(det = czero[czero.length() - 1], true) > 0) {
 				external_op = det;
 				czero.pop_back();
-				if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+				if (czero.length() >= 2 && priority(det = czero[czero.length() - 1], true) > 0) {
 					external_op = det + external_op;
 					czero.pop_back();
 				}
@@ -2207,10 +2211,10 @@ intValue run(string code, varmap &myenv, string fname) {
 		char det;
 		string external_op = "", &czero = codexec2[0];
 		// Only 2 layers' detect, reversely
-		if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+		if (czero.length() >= 2 && priority(det = czero[czero.length() - 1], true) > 0) {
 			external_op = det;
 			czero.pop_back();
-			if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+			if (czero.length() >= 2 && priority(det = czero[czero.length() - 1], true) > 0) {
 				external_op = det + external_op;
 				czero.pop_back();
 			}
@@ -3029,6 +3033,12 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 						}
 					}
 				}
+				else if (codexec[0] == "prerun") {
+					parameter_check(2);
+					string inst = codexec[1];
+					if (codexec.size() >= 3) inst = inst + ' ' + codexec[2];
+					calculate(inst, myenv);
+				}
 				else if (codexec[0] == "error_handler:") {
 					fun_indent = 1;
 					cfname = "__error_handler__";
@@ -3168,10 +3178,10 @@ intValue preRun(string code, map<string, intValue> required_global = {}, map<str
 					char det;
 					string external_op = "", &czero = codexec2[0];
 					// Only 2 layers' detect, reversely
-					if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+					if (czero.length() >= 2 && priority(det = czero[czero.length() - 1], true) > 0) {
 						external_op = det;
 						czero.pop_back();
-						if (czero.length() >= 2 && priority(det = czero[czero.length() - 1]) > 0) {
+						if (czero.length() >= 2 && priority(det = czero[czero.length() - 1], true) > 0) {
 							external_op = det + external_op;
 							czero.pop_back();
 						}
@@ -3228,7 +3238,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test1.blue";
+	string code = "", file = "test2.blue";
 	in_debug = true;
 	no_lib = false;
 
