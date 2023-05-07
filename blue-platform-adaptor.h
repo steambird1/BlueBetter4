@@ -1,7 +1,11 @@
 #pragma once
 #include "blue-lib.h"
-#include "blue-var.h"
+
 // Declarations in this file requires different codes in different platforms
+
+// Preventing redeclaration
+struct intValue;
+class varmap;
 
 typedef intValue(*blue_dcaller)(varmap*);
 
