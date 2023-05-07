@@ -178,13 +178,8 @@ thread_local char buf0[255], buf01[255], buf1[65536];
 
 #pragma region Declarations
 
-intValue run(string code, varmap &myenv, string fname);
-intValue calculate(string expr, varmap &vm);
-void raiseError(intValue raiseValue, varmap &myenv, string source_function = "Unknown source", size_t source_line = 0, double error_id = 0, string error_desc = "");
-intValue getValue(string single_expr, varmap &vm, bool save_quote = false, int multithreading = -1);
 #define raise_ce(description) raiseError(null, myenv, fname, execptr + 1, __LINE__, description)
-#define raise_varmap_ce(description) raiseError(null, *this, "Runtime", 0, __LINE__, description)
+#define raise_varmap_ce(description) do { curlout(); cout << description << endl; endout(); } while (false);
 #define raise_gv_ce(description) raiseError(null, vm, "Runtime", 0, __LINE__, description);
-
 
 #pragma endregion

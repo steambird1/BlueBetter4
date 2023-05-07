@@ -503,6 +503,56 @@ public:
 	const string mymagic = "__object$\n";
 	const string mygenerate = "__generate_";
 	const set<string> unserial = { "", "function", "class", "null" };
+
+protected:
+	// This provide a smaller version of getValue, which doesn't require interpreter's environment:
+	intValue getValue(string single_expr, varmap env, bool save_quote = false) {
+		if (single_expr == "null" || single_expr == "") return null;
+		// Remove any '(' in front
+		while (single_expr.length() && single_expr[0] == '(') {
+			if (single_expr[single_expr.length() - 1] == ')') single_expr.pop_back();
+			single_expr.erase(single_expr.begin());
+		}
+		if (single_expr[0] == '"' && single_expr[single_expr.length() - 1] == '"') {
+			return formatting(single_expr.substr(1, single_expr.length() - 2), '\\', (save_quote ? '\"' : char(-1)));
+		}
+		// Is number?
+		bool dot = false, isnum = true;
+		double neg = 1;
+		for (size_t i = 1; i < single_expr.length(); i++) {	// Not infl.
+			char &ch = single_expr[i];
+			if (ch == '.') {
+				if (dot) {
+					// Not a number
+					isnum = false;
+					break;
+				}
+				else {
+					dot = true;
+				}
+			}
+			else if (ch < '0' || ch > '9') {
+				isnum = false;
+				break;
+			}
+		}
+		char &fch = single_expr[0];
+		if (fch < '0' || fch > '9') {
+			if (fch == '-') {
+				neg = -1;
+				single_expr.erase(single_expr.begin());
+			}
+			else {
+				isnum = false;
+			}
+		}
+		if (isnum) {
+			return atof(single_expr.c_str()) * neg;
+		}
+		raise_varmap_ce("Unknown value in internal getValue() -- please check if object string contains runtime code");
+		return intValue();
+	}
+
 private:
 
 	mutex thread_protect;
