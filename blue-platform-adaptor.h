@@ -15,8 +15,30 @@
 
 DWORD precolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN, nowcolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;
 
+enum environ_type {
+	windows,
+	linux,
+	unix,
+	other
+};
+
+#if defined(_WIN32)
+#define environ_type environ_type::windows
+#elif defined(__linux__)
+#define environ_type environ_type::linux
+#elif defined(__unix__)
+#define environ_type environ_type::unix
+#else
+#define environ_type environ_type::other
+#endif
+
 #if defined(_WIN32)
 #include <Windows.h>
+
+#pragma region CRT Adaptor
+#define popen _popen
+#pragma endregion
+
 
 HANDLE stdouth;
 void setColor(DWORD color) {

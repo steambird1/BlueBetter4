@@ -1680,6 +1680,24 @@ else if_have_additional_op('<') {
 							raiseError(intValue(errno), myenv, fname, execptr + 1, 1, "Cannot open file " + fn + " as " + to_string(n));
 						}
 					}
+					else if (op == "open_console") {
+						// file open_console [var]=[console instruction string],[mode]
+						codexec3 = split(codexec2[1], '=', 1);
+						vector<string> codexec4 = split(codexec3[1], ',', 1);
+						int n = 0;
+						while (files.count(++n));
+						if (codexec3[0].find(":") != string::npos) {
+							codexec3[0] = curexp(codexec3[0], myenv);
+						}
+						myenv[codexec3[0]] = intValue(n);
+						intValue ca = calculate(codexec4[0], myenv);
+						string fn = ca.str;
+						string op = calculate(codexec4[1], myenv).str;
+						files[n] = popen(fn.c_str(), op.c_str());
+						if (files[n] == NULL || feof(files[n])) {
+							raiseError(intValue(errno), myenv, fname, execptr + 1, 1, "Cannot open command " + fn + " as a pipe for " + to_string(n));
+						}
+					}
 					else if (op == "read") {
 						// file read [store]=[var]
 						codexec3 = split(codexec2[1], '=', 1);
@@ -1817,8 +1835,13 @@ else if_have_additional_op('<') {
 				parameter_check2(2, "thread");
 				if (codexec2[0] == "test" || codexec2[0] == "new") {
 
-					// mutex test receiver=name
+					// thread test [receiver=]name
 					codexec3 = split(codexec2[1], '=', 1);
+					bool dispose_result = false;
+					if (codexec3.size() < 2) {
+						dispose_result = true;
+						codexec3.push_back(codexec3[0]);
+					}
 					if (codexec3[0][0] == '$') {
 						codexec3[0].erase(codexec3[0].begin());
 						codexec3[0] = calculate(codexec3[0], myenv).str;
@@ -1827,38 +1850,33 @@ else if_have_additional_op('<') {
 						codexec3[0] = curexp(codexec3[0], myenv);
 					}
 					if (codexec2[0] == "test") {
-						int cid = calculate(codexec3[1], myenv).numeric;
-						thread_status result = thread_status::unknown;
-						if (thread_table.count(cid)) {
-							thread &t = thread_table[cid];
-							if (t.joinable()) {
-								result = thread_status::joinable;
-							}
-							else {
-								result = thread_status::not_joinable;
-							}
+						if (dispose_result) {
+							raiseError(null, myenv, fname, execptr + 1, 3, "Can't dispose result of 'thread test'");
 						}
 						else {
-							result = thread_status::not_exist;
+							int cid = calculate(codexec3[1], myenv).numeric;
+							thread_status result = thread_status::unknown;
+							if (thread_table.count(cid)) {
+								thread &t = thread_table[cid];
+								if (t.joinable()) {
+									result = thread_status::joinable;
+								}
+								else {
+									result = thread_status::not_joinable;
+								}
+							}
+							else {
+								result = thread_status::not_exist;
+							}
+							myenv[codexec3[0]] = intValue(result);
 						}
-						myenv[codexec3[0]] = intValue(result);
+						
 					}
 					else {
 						parameter_check3(2, "thread");
-
 						int n = 0;
 						while (thread_table.count(++n));
-						/*size_t spl = codexec3[1].find(' ');
-						if (spl < codexec3[1].length() - 1) {
-							string args = codexec3[1].substr(spl + 1);
-						}*/
-						/*string code_text = codexec3[1];
-						thread_table[n] = thread([code_text, &myenv]() {
-							calculate(code_text, myenv);
-						});
-						thread_table[n].detach();
-						*/
-						myenv[codexec3[0]] = intValue(n);
+						if (!dispose_result) myenv[codexec3[0]] = intValue(n);
 						getValue(codexec3[1], myenv, false, n);
 
 					}
@@ -1970,7 +1988,7 @@ else if_have_additional_op('<') {
 	intValue preRun(string code, map<string, intValue> required_global = {}, map<string, bcaller> required_callers = {}) {
 		// Should prepare functions for it.
 		string fname = "Runtime preproessor";
-		varmap myenv;
+		
 		myenv.push();
 		// Preset constants
 #pragma region Preset constants
@@ -1991,6 +2009,7 @@ else if_have_additional_op('<') {
 		myenv.set_global("__error_handler__", intValue("call set_color,14\nprint \"On \"+err.source+\", Line \"+err.line+LF+err.description+LF+err.value+LF\ncall set_color,7"));	// Preset error handler
 		// End of replacable
 		myenv.set_global("__file__", intValue(env_name), true);
+		myenv.set_global("system_type", intValue(environ_type), true);
 		// Insert more global variable
 		for (auto &i : required_global) {
 			myenv.set_global(i.first, i.second);
@@ -2358,6 +2377,7 @@ else if_have_additional_op('<') {
 	bool no_lib = false;
 	vector<string> include_sources;
 	map<string, bcaller> intcalls;
+	varmap myenv;
 
 	private:
 		int __spec = 0;
