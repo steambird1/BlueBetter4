@@ -1,6 +1,10 @@
 #pragma once
 #include "blue-lib.h"
+#include "blue-var.h"
 // Declarations in this file requires different codes in different platforms
+
+typedef intValue(*blue_dcaller)(varmap*);
+
 #if defined(__linux__) || defined(__unix__)
 #define DWORD int
 #define FOREGROUND_BLUE 0x1

@@ -1,7 +1,8 @@
 #pragma once
 #include "blue-lib.h"
-
-// TODO: Put them into a class; Do more things in preRun()
+#if defined(__linux__)
+#include <dlfcn.h>
+#endif
 
 class interpreter {
 public:
@@ -2039,6 +2040,46 @@ else if_have_additional_op('<') {
 		// Remind you that eval is dangerous!
 		intcalls["eval"] = [this](string args, varmap &env) -> intValue {
 			return run(calculate(args, env).str, env, "Internal eval()");
+		};
+		intcalls["dll"] = [this](string args, varmap &env) -> intValue {
+			// call dll,dllname_string function
+			// call dll,dllname_string function:name1=val1;name2=val2,...
+			// name: normal name, or
+			// $ format, or
+			// a:b format. will be dealt with as set statements
+			vector<string> dllargs = split(args, ':', 1);
+			varmap new_env;
+			new_env.push();
+			if (dllargs.size() >= 2) {
+				vector<string> dllpara = split(dllargs[1], ';');
+				for (auto &i : dllpara) {
+					vector<string> singles = split(args, '=', 1);
+					// Deal with singles[0].
+					if (singles[0][0] == '$') {
+						singles[0] = calculate(singles[0].substr(1), env).str;
+					}
+					else {
+						singles[0] = auto_curexp(singles[0], env);
+					}
+					new_env[singles[0]] = calculate(singles[1], env);
+				}
+			}
+			vector<string> dllmains = split(dllargs[0], ' ', 1);
+			string dllname = calculate(dllmains[0], env).str;
+			string funcname = dllmains[1];
+			// Deal with function name:
+			if (dllmains[1][0] == '$') funcname = calculate(dllmains[1].substr(1), env).str;
+#if defined(_WIN32)
+			HINSTANCE dllinst = LoadLibrary(dllname.c_str());
+			blue_dcaller func = (blue_dcaller)GetProcAddress(dllinst, funcname.c_str());
+			return func(&new_env);
+#elif defined(__linux__)
+			void *dlib = dlopen(dllname.c_str(), RTLD_NOW);
+			blue_dcaller func = dlsym(dlib, funcname.c_str());
+			return func(&new_env);
+#else
+			raiseError(null, env, fname, execptr + 1, 5, "Dynamic library calls are not supported on this platform");
+#endif
 		};
 		intcalls["__bnot"] = [this](string args, varmap &env) -> intValue {
 			return ~ulong64(calculate(args, env).numeric);
