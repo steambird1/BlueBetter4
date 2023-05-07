@@ -33,4 +33,21 @@
       <Filter>资源文件</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="blue-var.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="blue.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="blue-lib.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="blue-execute.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="blue-platform-adaptor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>

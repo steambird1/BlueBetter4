@@ -131,6 +131,13 @@
     <None Include="example.blue" />
     <None Include="math.blue" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="blue-execute.h" />
+    <ClInclude Include="blue-lib.h" />
+    <ClInclude Include="blue-platform-adaptor.h" />
+    <ClInclude Include="blue-var.h" />
+    <ClInclude Include="blue.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
