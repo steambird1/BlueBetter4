@@ -1,6 +1,20 @@
 #pragma once
 #include "blue-lib.h"
 // Declarations in this file requires different codes in different platforms
+#if defined(__linux__) || defined(__unix__)
+#define DWORD int
+#define FOREGROUND_BLUE 0x1
+#define FOREGROUND_GREEN 0x2
+#define FOREGROUND_RED 0x4
+#define FOREGROUND_INTENSITY 0x8
+#define BACKGROUDN_BLUE 0x10
+#define BACKGROUND_GREEN 0x20
+#define BACKGROUND_RED 0x40
+#define BACKGROUND_INTENSITY 0x80
+#endif
+
+DWORD precolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN, nowcolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;
+
 #if defined(_WIN32)
 #include <Windows.h>
 
@@ -16,15 +30,6 @@ void standardPreparation() {
 }
 
 #elif defined(__linux__) || defined(__unix__)
-#define DWORD int
-#define FOREGROUND_BLUE 0x1
-#define FOREGROUND_GREEN 0x2
-#define FOREGROUND_RED 0x4
-#define FOREGROUND_INTENSITY 0x8
-#define BACKGROUDN_BLUE 0x10
-#define BACKGROUND_GREEN 0x20
-#define BACKGROUND_RED 0x40
-#define BACKGROUND_INTENSITY 0x80
 
 //HANDLE stdouth;
 DWORD precolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN, nowcolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;
@@ -50,8 +55,6 @@ void standardPreparation() {
 }
 
 #endif
-
-DWORD precolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN, nowcolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;
 
 inline void begindout() {
 	setColor(FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY);

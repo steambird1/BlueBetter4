@@ -2354,6 +2354,11 @@ else if_have_additional_op('<') {
 
 		}
 
+	bool in_debug = false;	// Runner debug option.
+	bool no_lib = false;
+	vector<string> include_sources;
+	map<string, bcaller> intcalls;
+
 	private:
 		int __spec = 0;
 		const int max_indent = 65536;
@@ -2365,11 +2370,9 @@ else if_have_additional_op('<') {
 		map<int, thread> thread_table;
 
 		bool np = false, spec_ovrd = false;
-		vector<string> include_sources;
+		
 		map<int, FILE*> files;
-		map<string, bcaller> intcalls;
-		bool in_debug = false;	// Runner debug option.
-		bool no_lib = false;
+	
 
 };
 
