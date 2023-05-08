@@ -194,6 +194,9 @@ public:
 		if (glob_vs.count(key)) return true;
 		return false;
 	}
+	void insert(mit begin, mit end) {
+		this->vs.rbegin()->insert(begin, end);
+	}
 	// Before call THIS check it
 	// return TRUE if success or FALSE if fail £¨Unused currently)
 	bool set_referrer(string here_name, referrer ref) {

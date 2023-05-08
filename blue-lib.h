@@ -67,6 +67,41 @@ vector<string> split(string str, char delimiter = '\n', int maxsplit = -1, char 
 	return result;
 }
 
+vector<string> parameterSplit(string expr) {
+	vector<string> arg;
+	int quotes = 0;
+	string tmp = "";
+	bool str = false, dmode = false;
+	for (auto &i : expr) {
+		if (i == '(' && (!str)) {
+			if (quotes) tmp += i;
+			quotes++;
+		}
+		else if (i == ')' && (!str)) {
+			quotes--;
+			if (quotes) tmp += i;
+		}
+		else if (i == '\\' && (!dmode)) {
+			dmode = true;
+			tmp += i;
+		}
+		else if (i == '"' && (!dmode)) {
+			str = !str;
+			tmp += i;
+		}
+		else if (i == ',' && (!quotes) && (!str)) {
+			arg.push_back(tmp);
+			tmp = "";
+		}
+		else {
+			tmp += i;
+		}
+		dmode = false;
+	}
+	if (tmp.length()) arg.push_back(tmp);
+	return arg;
+}
+
 class jumpertable {
 public:
 

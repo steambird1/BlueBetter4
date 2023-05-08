@@ -1,11 +1,21 @@
 #pragma once
 #include "blue-lib.h"
+#define _CRT_NONSTDC_NO_WARNINGS
+#include <direct.h>
+#include <io.h>
 
 // Declarations in this file requires different codes in different platforms
 
 // Preventing redeclaration
 struct intValue;
 class varmap;
+
+enum blue_errors {
+	no_error,
+	yield_dir_fail
+};
+
+thread_local int blue_lasterr = blue_errors::no_error;
 
 typedef intValue(*blue_dcaller)(varmap*);
 
@@ -29,6 +39,19 @@ enum environ_type {
 	unix,
 	other
 };
+
+#if defined(_WIN32)
+#define mkdir _mkdir
+#define rmdir _rmdir
+#endif
+
+using fileinfo = _finddata_t;
+
+#if defined(_WIN32)
+using finder_handle = intptr_t;
+#else
+using finder_handle = long;
+#endif
 
 #if defined(_WIN32)
 #define environ_type environ_type::windows
@@ -59,7 +82,15 @@ void standardPreparation() {
 	stdouth = GetStdHandle(STD_OUTPUT_HANDLE);
 }
 
+void clearScreen() {
+	system("cls");
+}
+
 #elif defined(__linux__) || defined(__unix__)
+
+void clearScreen() {
+	system("clear");
+}
 
 //HANDLE stdouth;
 DWORD precolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN, nowcolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;

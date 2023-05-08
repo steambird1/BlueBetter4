@@ -1,8 +1,57 @@
 #pragma once
 #include "blue-lib.h"
+#include "blue-platform-adaptor.h"
 #if defined(__linux__)
 #include <dlfcn.h>
 #endif
+
+int removesFile(string filename) {
+	remove(filename.c_str());
+	return errno;
+}
+
+int makeDirectory(string dirname) {
+	return mkdir(dirname.c_str());
+}
+
+int removeDirectory(string dirname) {
+	return rmdir(dirname.c_str());
+}
+
+// mydir should have '\\' in the end
+// Will return something to serial unless __is_recesuive = true
+// TODO: Change it into map<string, string> returns
+// *** var_prefix REQUIRES '.' ***
+map<string, intValue> yieldDirectory(string mydir, string matcher, string var_prefix, bool prohibit_recesuive = false, bool __is_recesuive = false) {
+	fileinfo f;
+	finder_handle handler = _findfirst((mydir + matcher).c_str(), &f);
+	const intValue ftyper = intValue("file_info");
+	map<string, intValue> result;
+	if (handler < 0) {
+		return { {".__has_error__", intValue(1)} };
+	}
+	do {
+		string sfname = f.name;
+		if (sfname == "." || sfname == "..") continue;
+		//result += blue_fileinfo(f).serial(mydir);
+		string hf = var_prefix + mydir + sfname;
+		result[hf + ".__type__"] = ftyper;
+		result[hf + ".attrib"] = intValue(f.attrib);
+		result[hf + ".time_access"] = intValue(f.time_access);
+		result[hf + ".time_write"] = intValue(f.time_write);
+		result[hf + ".time_create"] = intValue(f.time_create);
+		result[hf + ".size"] = intValue(f.size);
+		if (f.attrib & _A_SUBDIR) {
+			if (!prohibit_recesuive) {
+				auto yres = yieldDirectory(mydir + sfname + '\\', matcher, var_prefix, false, true);
+				result.insert(yres.begin(), yres.end());
+			}
+		}
+	} while (!_findnext(handler, &f));
+	_findclose(handler);
+	return result;
+}
+
 
 class interpreter {
 public:
@@ -76,7 +125,6 @@ public:
 		emer_var.push();
 		run(myenv["__error_handler__"].str, emer_var, "__error_handler__");
 	}
-
 
 	// If save_quote, formatting() will not process anything inside quote.
 	// If multithreading, run() will be async and the function WILL RETURN NULL (since I don't "promise").
@@ -235,9 +283,9 @@ public:
 					argname = split(args, ' ');
 				}
 				if (args.length()) {
-					bool str = false, dmode = false;
+					// TODO: Test various function calls after that
+					/*bool str = false, dmode = false;
 					if (spl.size() >= 2) {	// Procees with arguments ...
-						//arg = split(spl[1], ',');
 						int quotes = 0;
 						string tmp = "";
 						for (auto &i : spl[1]) {
@@ -270,7 +318,8 @@ public:
 					}
 					else {
 						if (spl.size() >= 2) arg.push_back(spl[1]);
-					}
+					}*/
+					arg = parameterSplit(spl[1]);
 					if (!array_arg.length()) {
 						if (arg.size() != argname.size()) {
 							if (argname.size() && arg.size() == argname.size() - 1) {
@@ -1964,7 +2013,13 @@ else if_have_additional_op('<') {
 					result = intcalls[codexec2[0]](codexec2[1], myenv);
 				}
 				if (save_target.length()) {
-					myenv[save_target] = result;
+					if (result.isObject) {
+						myenv.deserial(save_target, result.str);
+					}
+					else {
+						myenv[save_target] = result;
+					}
+					
 				}
 			}
 			else {
@@ -2037,7 +2092,24 @@ else if_have_additional_op('<') {
 			setColor(DWORD(calculate(args, env).numeric));
 			return null;
 		};
-		// Remind you that eval is dangerous!
+		intcalls["dir"] = [this](string args, varmap &env) -> intValue {
+			// dir target,origin,matcher[,prohibit recesuive]
+			vector<string> codexec = parameterSplit(args);
+			bool proh_rec = false;
+			if (codexec.size() < 3) {
+				raiseError(null, env, "Yield caller", 0, 6, "Bad grammar");
+				return null;
+			}
+			if (codexec.size() >= 4) proh_rec = calculate(codexec[3], env).numeric;
+			auto result = yieldDirectory(calculate(codexec[1], env).str, calculate(codexec[2], env).str, codexec[0] + '.');
+			env.insert(result.begin(), result.end());
+			env[codexec[0]] = null;
+			env[codexec[0] + ".__type__"] = intValue("yield_result");
+			return null;
+			//res.isObject = true;
+			//return res;
+		};
+		// I remind you that eval is dangerous!
 		intcalls["eval"] = [this](string args, varmap &env) -> intValue {
 			return run(calculate(args, env).str, env, "Internal eval()");
 		};
@@ -2053,7 +2125,7 @@ else if_have_additional_op('<') {
 			if (dllargs.size() >= 2) {
 				vector<string> dllpara = split(dllargs[1], ';');
 				for (auto &i : dllpara) {
-					vector<string> singles = split(args, '=', 1);
+					vector<string> singles = split(i, '=', 1);
 					// Deal with singles[0].
 					if (singles[0][0] == '$') {
 						singles[0] = calculate(singles[0].substr(1), env).str;
@@ -2065,20 +2137,39 @@ else if_have_additional_op('<') {
 				}
 			}
 			vector<string> dllmains = split(dllargs[0], ' ', 1);
+			if (dllmains.size() < 2) {
+				raiseError(null, env, "DLL Caller", 0, 6, "Bad grammar");
+				return null;
+			}
 			string dllname = calculate(dllmains[0], env).str;
 			string funcname = dllmains[1];
 			// Deal with function name:
 			if (dllmains[1][0] == '$') funcname = calculate(dllmains[1].substr(1), env).str;
 #if defined(_WIN32)
 			HINSTANCE dllinst = LoadLibrary(dllname.c_str());
+			if (dllinst == NULL) {
+				raiseError(GetLastError(), env, "Dll caller", 0, 8 + (GetLastError() << 4), "Can't get DLL instance");
+				return null;
+			}
 			blue_dcaller func = (blue_dcaller)GetProcAddress(dllinst, funcname.c_str());
-			return func(&new_env);
+			if (func == nullptr) {
+				raiseError(errno, env, "Dll caller", 0, 7, "Can't get address of certain function");
+				FreeLibrary(dllinst);
+				return null;
+			}
+			//
+			auto res = func(&new_env);
+			FreeLibrary(dllinst);
+			return res;
 #elif defined(__linux__)
 			void *dlib = dlopen(dllname.c_str(), RTLD_NOW);
 			blue_dcaller func = dlsym(dlib, funcname.c_str());
-			return func(&new_env);
+			auto res = func(&new_env);
+			dlclose(dlib);
+			return res;
 #else
-			raiseError(null, env, fname, execptr + 1, 5, "Dynamic library calls are not supported on this platform");
+			raiseError(null, env, "Dll caller", 0, 5, "Dynamic library calls are not supported on this platform");
+			return null;
 #endif
 		};
 		intcalls["__bnot"] = [this](string args, varmap &env) -> intValue {

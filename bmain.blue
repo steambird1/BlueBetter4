@@ -6,6 +6,12 @@ class object:
 	init:
 		# Empty class, do nothing
 
+class yield_result:
+	inherits object
+
+class file_info:
+	inherits object
+
 class list:
 	hidden _length
 	init:
