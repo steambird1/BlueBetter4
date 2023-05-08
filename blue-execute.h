@@ -2113,6 +2113,10 @@ else if_have_additional_op('<') {
 		intcalls["eval"] = [this](string args, varmap &env) -> intValue {
 			return run(calculate(args, env).str, env, "Internal eval()");
 		};
+		intcalls["cls"] = [this](string args, varmap &env) -> intValue {
+			clearScreen();
+			return null;
+		};
 		intcalls["dll"] = [this](string args, varmap &env) -> intValue {
 			// call dll,dllname_string function
 			// call dll,dllname_string function:name1=val1;name2=val2,...
@@ -2179,6 +2183,11 @@ else if_have_additional_op('<') {
 #define math_extension(funame) intcalls["_maths_" #funame] = [this](string args, varmap &env) -> intValue { \
 		return intValue(funame(calculate(args, env).numeric)); \
 	}
+#define system_caller(fname,funcref) intcalls[fname] = [this](string args, varmap &env) -> intValue { \
+		int ret = intValue(funcref(calculate(args, env).str)).numeric; \
+		if (ret) raiseError(ret, env, fname, 0, 9 + (errno << 4) + (ret << 6), string("System error in "#fname " errno: ") + to_string(errno) + " ret: " + to_string(ret)); \
+		return null; \
+	}
 		math_extension(sin);
 		math_extension(cos);
 		math_extension(tan);
@@ -2186,6 +2195,12 @@ else if_have_additional_op('<') {
 		math_extension(acos);
 		math_extension(atan);
 		math_extension(sqrt);
+		system_caller("mkdir", makeDirectory);
+		system_caller("md", makeDirectory);
+		system_caller("rmdir", removeDirectory);
+		system_caller("rd", removeDirectory);
+		system_caller("rm", removesFile);
+		system_caller("del", removesFile);
 		intcalls["_trim"] = [this](string args, varmap &env) -> intValue {
 			string s = calculate(args, env).str;
 			while (s.length() && to_trim.count(s[s.length() - 1])) s.pop_back();
