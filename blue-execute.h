@@ -18,6 +18,7 @@ int removeDirectory(string dirname) {
 	return rmdir(dirname.c_str());
 }
 
+#pragma warning(disable:C4244)
 // mydir should have '\\' in the end
 // Will return something to serial unless __is_recesuive = true
 // TODO: Change it into map<string, string> returns
@@ -51,6 +52,7 @@ map<string, intValue> yieldDirectory(string mydir, string matcher, string var_pr
 	_findclose(handler);
 	return result;
 }
+#pragma warning(enable:C4244)
 
 
 class interpreter {
@@ -364,10 +366,10 @@ public:
 						if (re.isObject) {
 							// Passing ByVal, automaticly deserial
 							if (array_arg.length()) {
-								nvm.deserial(array_arg + dots + to_string(i), re.str);
+								nvm.deserial(array_arg + dots + to_string(i), re.serial_data);
 							}
 							else {
-								nvm.deserial(argname[i], re.str);
+								nvm.deserial(argname[i], re.serial_data);
 							}
 						}
 						else {
@@ -766,7 +768,7 @@ else if_have_additional_op('<') {
 								if (obj.isObject) {
 									val.pop();
 									string gen = vm.generate();
-									vm.deserial(gen, obj.str);
+									vm.deserial(gen, obj.serial_data);
 									val.push(intValue(gen));
 								}
 								else {
@@ -839,7 +841,7 @@ else if_have_additional_op('<') {
 				if (obj.isObject) {
 					val.pop();
 					string gen = vm.generate();
-					vm.deserial(gen, obj.str);
+					vm.deserial(gen, obj.serial_data);
 					operand += gen + '.';
 				}
 				else {
@@ -969,7 +971,14 @@ else if_have_additional_op('<') {
 			}
 			else if (codexec[0] == "print") {
 				parameter_check(2);
-				cout << calculate(codexec[1], myenv).str;
+				auto res = calculate(codexec[1], myenv);
+				if (res.isObject) {
+					res.output();
+				}
+				else {
+					cout << res.str;
+				}
+				
 			}
 			else if (codexec[0] == "return") {
 				if (codexec.size() < 2) return null;
@@ -1033,12 +1042,12 @@ else if_have_additional_op('<') {
 					vector<string> codexec3 = split(codexec2[1], ' ', 1);
 					parameter_check3(2, "Operator number");
 					// WARNING: WILL NOT CALCUTE ANYMORE
-					myenv.deserial(codexec2[0], getValue(codexec3[1], myenv, true).str);
+					myenv.traditional_deserial(codexec2[0], getValue(codexec3[1], myenv, true).str);
 				}
 				else if (beginWith(codexec2[1], "serial ")) {
 					vector<string> codexec3 = split(codexec2[1], ' ', 1);
 					parameter_check3(2, "Operator number");
-					myenv[codexec2[0]] = myenv.serial(codexec3[1]);
+					myenv[codexec2[0]] = myenv.traditional_serial(codexec3[1]);
 				}
 				else if (codexec2[1] == "clear" || codexec2[1] == "null") {
 					myenv.tree_clean(codexec2[0]);
@@ -1065,7 +1074,7 @@ else if_have_additional_op('<') {
 						//myenv[codexec2[0]] = myenv[codexec3[1]];
 						auto &res = myenv[codexec3[1]];
 						if (res.isObject) {
-							myenv.deserial(codexec2[0], res.str);
+							myenv.deserial(codexec2[0], res.serial_data);
 						}
 						else {
 							myenv[codexec2[0]] = res;
@@ -1223,7 +1232,7 @@ else if_have_additional_op('<') {
 
 						auto __res_dealer = [&nvm, &res]() {
 							if (res.isObject) {
-								nvm.deserial("value", res.str);
+								nvm.deserial("value", res.serial_data);
 							}
 							else {
 								nvm["value"] = res;
@@ -1268,7 +1277,7 @@ else if_have_additional_op('<') {
 						if (external_op.length()) {
 							raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
 						}
-						myenv.deserial(codexec2[0], res.str);
+						myenv.deserial(codexec2[0], res.serial_data);
 					}
 					else if (external_op.length()) {
 						myenv[codexec2[0]] = primary_calculate(myenv[codexec2[0]], external_op, res, myenv);
@@ -1398,7 +1407,7 @@ else if_have_additional_op('<') {
 					if (external_op.length()) {
 						raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
 					}
-					myenv.global_deserial(codexec2[0], res.str);
+					myenv.global_deserial(codexec2[0], res.serial_data);
 					if (constant) {
 						myenv.set_global(codexec2[0] + ".__const__", intValue("1"));
 					}
@@ -2014,7 +2023,7 @@ else if_have_additional_op('<') {
 				}
 				if (save_target.length()) {
 					if (result.isObject) {
-						myenv.deserial(save_target, result.str);
+						myenv.deserial(save_target, result.serial_data);
 					}
 					else {
 						myenv[save_target] = result;
@@ -2481,7 +2490,7 @@ else if_have_additional_op('<') {
 							if (external_op.length()) {
 								raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
 							}
-							myenv.global_deserial(codexec2[0], res.str);
+							myenv.global_deserial(codexec2[0], res.serial_data);
 							if (constant) {
 								myenv.set_global(codexec2[0] + ".__const__", intValue("1"));
 							}

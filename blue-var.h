@@ -38,9 +38,20 @@ struct intValue {
 	// To be considered:
 	// When these values are set, 'isNull' should NOT be true anymore.
 
+	using serial_type = map<string, intValue>;
+
+	enum output_level {
+		least,
+		normal,
+		most
+	};
+
+	static output_level current_output;
+
 	// DO NOT WRITE THEM DIRECTLY!
 	double								numeric;
 	string								str;
+	serial_type							serial_data;
 	bool								isNull = false;
 	bool								isNumeric = false;
 	bool								isObject = false;
@@ -85,6 +96,9 @@ struct intValue {
 	intValue(string str) : str(str) {
 
 	}
+	intValue(serial_type serials) : serial_data(serials) {
+		this->isObject = true;
+	}
 
 	// Usually use for debug proposes
 	void output() {
@@ -93,6 +107,30 @@ struct intValue {
 		}
 		else if (isNumeric) {
 			cout << "num:" << numeric;
+		}
+		else if (isObject) {
+			DWORD prec = nowcolor;
+			setColor(FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+			cout << "<" << serial_data["__type__"].str << " object at " << (this) << ">" << endl;
+			if (current_output != least) {
+				for (auto &i : serial_data) {
+					if (current_output == normal) {
+						if (i.first.find("__type__") != string::npos || i.first.find("__const__") != string::npos) continue;
+					}
+					setColor(FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+					cout << i.first;
+					setColor(FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+					cout << ": ";
+					if (i.second.isNull) {
+						cout << "null" << endl;
+						continue;
+					}
+					setColor(FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+					cout << i.second.str;
+					cout << endl;
+				}
+			}
+			setColor(prec);
 		}
 		else {
 			cout << "str:" << str;
@@ -123,6 +161,8 @@ struct intValue {
 	}
 
 } null;
+intValue::output_level intValue::current_output = normal;	// This is suggested
+
 thread_local intValue trash;	// trash: Return if incorrect varmap[] is called.
 
 const set<string> nocopy = { ".__type__", ".__inherits__", ".__arg__", ".__must_inherit__", ".__no_inherit__" };
@@ -130,6 +170,8 @@ const set<string> nocopy = { ".__type__", ".__inherits__", ".__arg__", ".__must_
 const set<string> magics = { ".__type__", ".__inherits__", ".__arg__", ".__must_inherit__", ".__no_inherit__", ".__init__", ".__hidden__", ".__shared__", ".__const__", ".__is_prop__", ".__setter__" };
 class varmap {
 public:
+
+	using serial_type = intValue::serial_type;
 
 	using value_type = intValue;
 	using single_mapper = map<string, value_type>;
@@ -357,7 +399,18 @@ public:
 		if (glob_vs.count(name)) {
 			return serial_from(glob_vs, name);
 		}
-		return mymagic;
+		return intValue(serial_type());
+	}
+	value_type traditional_serial(string name) {
+		for (vit i = vs.rbegin(); i != vs.rend(); i++) {
+			if (i->count(name)) {
+				return traditional_serial_from(*i, name);
+			}
+		}
+		if (glob_vs.count(name)) {
+			return traditional_serial_from(glob_vs, name);
+		}
+		return intValue(serial_type());
 	}
 	vector<value_type> get_member(string name, bool force_show = false) {
 		for (vit i = vs.rbegin(); i != vs.rend(); i++) {
@@ -370,7 +423,18 @@ public:
 		}
 		return vector<value_type>();
 	}
-	void deserial(string name, string serial) {
+	void deserial(string name, serial_type serial) {
+		wait_for_perm();
+		for (auto &i : serial) {
+			//vector<string> itemspl = split(i, '=', 1);
+			//if (itemspl.size() < 2) itemspl.push_back("null");
+			//(*this)[name + itemspl[0]] = getValue(itemspl[1], *this);
+			(*this)[name + '.' + i.first] = i.second;
+		}
+		(*this)[name] = null;
+		release_perm();
+	}
+	void traditional_deserial(string name, string serial) {
 		wait_for_perm();
 		if (!beginWith(serial, mymagic)) {
 			release_perm();
@@ -386,7 +450,7 @@ public:
 		(*this)[name] = null;
 		release_perm();
 	}
-	void global_deserial(string name, string serial) {
+	void traditional_global_deserial(string name, string serial) {
 		wait_for_perm();
 		if (!beginWith(serial, mymagic)) {
 			release_perm();
@@ -398,6 +462,14 @@ public:
 			vector<string> itemspl = split(i, '=', 1);
 			if (itemspl.size() < 2) itemspl.push_back("null");
 			this->set_global(name + itemspl[0], getValue(itemspl[1], *this));
+		}
+		this->set_global(name, null);
+		release_perm();
+	}
+	void global_deserial(string name, serial_type serial) {
+		wait_for_perm();
+		for (auto &i : serial) {
+			this->set_global(name + '.' + i.first, i.second);
 		}
 		this->set_global(name, null);
 		release_perm();
@@ -597,8 +669,52 @@ private:
 		}
 		return result;
 	}
-	// serial and serial_from does NOT support RAW REFERRER.
 	intValue serial_from(single_mapper &obj, string name) {
+		// TODO: Avoid looping-serialer
+		static thread_local unsigned entries = 0u;
+		serial_type tmp;
+		for (auto &j : obj) {
+			if (beginWith(j.first, name + ".")) {
+				//vector<string> spl = split(j.first, '.', 1);
+				vector<string> spl = { "","" };
+				size_t fl = j.first.find('.', j.first.find(name) + name.length());
+				if (fl == string::npos) continue;
+				spl[0] = j.first.substr(0, fl);
+				if (spl[0] != name) continue;
+				spl[1] = j.first.substr(fl + 1);
+				//tmp += string(".") + spl[1] + "=" + j.second.unformat() + "\n";
+				tmp[spl[1]] = j.second;
+			}
+		}
+		// Deep copy in default!
+		for (auto &j : this->ref) {
+			if (beginWith(j.first, name + ".")) {
+				vector<string> spl = { "","" };
+				size_t fl = j.first.find('.', j.first.find(name) + name.length());
+				if (fl == string::npos) continue;
+				spl[0] = j.first.substr(0, fl);
+				if (spl[0] != name) continue;
+				spl[1] = j.first.substr(fl + 1);
+				auto val = j.second.getValue();
+				if (unserial.count(j.second.getValue("__type__").str)) {
+					// Simple values:
+					//tmp += sdot + spl[1] + "=" + val.unformat() + "\n";
+					tmp[spl[1]] = val;
+				}
+				else {
+					// Deserial it at once:
+					auto sub_serial = val.serial_data;
+					for (auto &i : sub_serial) {
+						tmp[spl[1] + '.' + i.first] = i.second;
+					}
+					tmp[spl[1]] = null;
+				}
+
+			}
+		}
+		return intValue(tmp);
+	}
+	intValue traditional_serial_from(single_mapper &obj, string name) {
 		string tmp = mymagic;
 		const static string sdot = ".";
 		for (auto &j : obj) {
