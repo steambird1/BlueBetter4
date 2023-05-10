@@ -59,7 +59,56 @@ class interpreter {
 public:
 
 	//typedef intValue(*bcaller)(string, varmap&);
-	using bcaller = function<intValue(string, varmap&)>;
+
+	class bcaller {
+	public:
+		using int_type = function<intValue(string, varmap&)>;
+		using out_type = function<intValue(string, varmap&, interpreter&)>;
+
+		bcaller() {
+
+		}
+
+		bcaller(int_type ints) : ints(ints), is_int_type(true), is_ok(true) {
+
+		}
+
+		bcaller(out_type outs) : outs(outs), is_ok(true) {
+
+		}
+
+		bcaller operator = (int_type ints) {
+			this->ints = ints;
+			this->is_int_type = true;
+			this->is_ok = true;
+			return *this;
+		}
+
+		bcaller operator = (out_type outs) {
+			this->outs = outs;
+			this->is_ok = true;
+			return *this;
+		}
+
+		intValue operator() (string arg, varmap &env, interpreter &interp) {
+			if (this->is_int_type) {
+				return this->ints(arg, env);
+			}
+			else if (this->is_ok) {
+				return this->outs(arg, env, interp);
+			}
+			else {
+				return null;
+			}
+		}
+
+	private:
+		int_type ints;
+		out_type outs;
+		bool is_int_type = false, is_ok = false;
+	};
+
+	//using bcaller = function<intValue(string, varmap&, interpreter&)>;
 
 	size_t getLength(int fid) {
 		size_t cur = ftell(files[fid]);
@@ -2016,10 +2065,10 @@ else if_have_additional_op('<') {
 					goto add_exp;
 				}
 				if (codexec2.size() == 1) {
-					result = intcalls[codexec2[0]]("", myenv);
+					result = intcalls[codexec2[0]]("", myenv, *this);
 				}
 				else if (codexec2.size() == 2) {
-					result = intcalls[codexec2[0]](codexec2[1], myenv);
+					result = intcalls[codexec2[0]](codexec2[1], myenv, *this);
 				}
 				if (save_target.length()) {
 					if (result.isObject) {
