@@ -152,8 +152,7 @@ class binary_writer:
 		set myop=myop+"b"
 		run this._basic_file@open fn,myop
 	function write_binary blist:
-		set bobj=object blist
-		file binary_write this.handle,bobj
+		file binary_write this.handle,blist
 
 function random:
 	set tmp=__random
@@ -190,7 +189,7 @@ class dict:
 		set res=ishave (this:member)
 		return res
 	function length:
-		set t=object membersof this
+		set t=membersof this
 		return t.length
 	function keys:
 		return membersof this
