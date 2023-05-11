@@ -2284,18 +2284,22 @@ else if_have_additional_op('<') {
 		//bool bmain_fail = false;
 		vector<string> codestream;
 		// Initalize libraries right here
-		FILE *f = fopen("bmain.blue", "r");
-		if (f != NULL) {
-			while (!feof(f)) {
-				fgets(buf1, 65536, f);
-				codestream.push_back(buf1);
+		if ((!no_lib) && (!loaded_lib)) {
+			loaded_lib = true;
+			FILE *f = fopen("bmain.blue", "r");
+			if (f != NULL) {
+				while (!feof(f)) {
+					fgets(buf1, 65536, f);
+					codestream.push_back(buf1);
+				}
+				fclose(f);
 			}
-			fclose(f);
+			else {
+				size_t execptr = 0;	// For ce-raising
+				raise_ce("You don't have bmain.blue, which is required! To prevent this, copy bmain.blue under program directory or use --no-lib.");
+			}
 		}
-		else if (!no_lib) {
-			size_t execptr = 0;	// For ce-raising
-			raise_ce("You don't have bmain.blue, which is required! To prevent this, copy bmain.blue under program directory or use --no-lib.");
-		}
+		
 
 		// End
 
@@ -2581,6 +2585,7 @@ else if_have_additional_op('<') {
 
 	bool in_debug = false;	// Runner debug option.
 	bool no_lib = false;
+	bool loaded_lib = false;
 	vector<string> include_sources;
 	map<string, bcaller> intcalls;
 	varmap myenv;
