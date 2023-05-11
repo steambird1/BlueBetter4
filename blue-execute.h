@@ -2304,7 +2304,7 @@ else if_have_additional_op('<') {
 		// End
 
 		vector<string> sc = split(code, '\n', -1, '\"', '\\', true);
-		if (codestream.size()) codestream.insert(codestream.end() - 1, sc.begin(), sc.end());
+		codestream.insert(codestream.end(), sc.begin(), sc.end());
 		string curclass = "";					// Will append '.'
 		string curfun = "", cfname = "", cfargs = "";
 		int fun_indent = max_indent;
