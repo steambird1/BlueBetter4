@@ -1682,7 +1682,8 @@ else if_have_additional_op('<') {
 					current = intValue(myenv[codexec2[0]].numeric + stepper.numeric);
 				}
 				myenv[codexec2[0]] = current;
-				if (myenv[codexec2[0]].numeric == calculate(rangeobj[1], myenv).numeric) {
+				auto ending = calculate(rangeobj[1], myenv).numeric;
+				if (myenv[codexec2[0]].numeric == ending) {
 					// Jump where end-of-loop
 					myenv.tree_clean(codexec2[0]);
 					noroll = true; //  End of statements' life
