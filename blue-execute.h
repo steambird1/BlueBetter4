@@ -1386,7 +1386,7 @@ else if_have_additional_op('<') {
 					raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
 					goto add_exp;
 				}
-				auto &intv = myenv[codexec2[0]];
+#define intv myenv[codexec2[0]]
 				if (intv.isNull) {
 					intv.set_str("");
 				}
@@ -1412,6 +1412,7 @@ else if_have_additional_op('<') {
 				// Can we?
 				myenv[codexec2[0]].str.insert(pos, cres);
 				//intv.str[pos] = calculate(codexec2_origin[1], myenv).str[0];
+#undef intv
 			}
 			else if (codexec[0] == "global") {
 				bool constant = false;
