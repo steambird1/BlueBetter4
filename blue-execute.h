@@ -2116,6 +2116,7 @@ else if_have_additional_op('<') {
 		myenv.set_global("CLOCKS_PER_SEC", intValue(CLOCKS_PER_SEC), true);
 		myenv.set_global("true", intValue(1), true);
 		myenv.set_global("false", intValue(0), true);
+		myenv.set_global("undefined", null, true);
 		myenv.set_global("thread_state.unknown", intValue(thread_status::unknown), true);
 		myenv.set_global("thread_state.not_exist", intValue(thread_status::not_exist), true);
 		myenv.set_global("thread_state.joinable", intValue(thread_status::joinable), true);
