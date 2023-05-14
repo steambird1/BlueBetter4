@@ -1,8 +1,15 @@
 #pragma once
 #include "blue-lib.h"
 #define _CRT_NONSTDC_NO_WARNINGS
+#ifdef _WIN32
 #include <direct.h>
 #include <io.h>
+#else
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#endif
 
 // Declarations in this file requires different codes in different platforms
 
@@ -19,7 +26,7 @@ thread_local int blue_lasterr = blue_errors::no_error;
 
 typedef intValue(*blue_dcaller)(varmap*);
 
-#if defined(__linux__) || defined(__unix__)
+#ifndef _WIN32
 #define DWORD int
 #define FOREGROUND_BLUE 0x1
 #define FOREGROUND_GREEN 0x2
@@ -45,9 +52,8 @@ enum environ_type {
 #define rmdir _rmdir
 #endif
 
-using fileinfo = _finddata_t;
-
 #if defined(_WIN32)
+using fileinfo = _finddata_t;
 using finder_handle = intptr_t;
 #else
 using finder_handle = long;
@@ -86,14 +92,13 @@ void clearScreen() {
 	system("cls");
 }
 
-#elif defined(__linux__) || defined(__unix__)
+#else
 
 void clearScreen() {
 	system("clear");
 }
 
 //HANDLE stdouth;
-DWORD precolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN, nowcolor = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;
 void setColor(int color) {
 	static map<int, int> color_mapping = { {0x4, 1}, {0x2, 2}, {0x6, 3}, {0x1, 4}, {0x5, 5}, {0x3, 6}, {0x7, 7} };
 	// Deal with foreground part:

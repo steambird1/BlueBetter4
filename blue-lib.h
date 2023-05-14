@@ -7,7 +7,11 @@
 #include <string>
 #include <cstdio>
 #include <set>
+#ifdef _WIN32
 #include <windows.h>
+#else
+#define DWORD int
+#endif
 #include <ctime>
 #include <cmath>
 #include <thread>
@@ -31,11 +35,13 @@ bool beginWith(string origin, string judger) {
 	return origin.length() >= judger.length() && origin.substr(0, judger.length()) == judger;
 }
 
-int random() {
+int randoms() {
 	static int seed = time(NULL);
 	srand(seed);
 	return seed = rand();
 }
+
+#define random randoms
 
 vector<string> split(string str, char delimiter = '\n', int maxsplit = -1, char allowedquotes = '"', char allowedinner = -1, bool reserve_dinner = false) {
 	// Manually breaks
@@ -211,6 +217,14 @@ int getIndentRaw(string str, int maxfetch = -1) {
 
 
 thread_local char buf0[255], buf01[255], buf1[65536];
+
+#pragma region Debug support
+
+#define IS_SYS_DEBUG 0
+#define ifdebug if (IS_SYS_DEBUG)
+#define ifndebug if (!IS_SYS_DEBUG)
+
+#pragma endregion
 
 #pragma region Declarations
 

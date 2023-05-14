@@ -4,6 +4,9 @@
 #if defined(__linux__)
 #include <dlfcn.h>
 #endif
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 int removesFile(string filename) {
 	remove(filename.c_str());
@@ -11,25 +14,130 @@ int removesFile(string filename) {
 }
 
 int makeDirectory(string dirname) {
+#ifdef _WIN32
 	return mkdir(dirname.c_str());
+#else
+	return mkdir(dirname.c_str(), 0766);
+#endif
 }
 
 int removeDirectory(string dirname) {
+#ifdef _WIN32
 	return rmdir(dirname.c_str());
+#else
+	return unlink(dirname.c_str());
+#endif
 }
 
 #pragma warning(disable:C4244)
+
+#ifndef _WIN32
+
+#define _A_ARCH 0x20
+#define _A_HIDDEN 0x02
+#define _A_NORMAL 0x00
+#define _A_RDONLY 0x01
+#define _A_SUBDIR 0x10
+#define _A_SYSTEM 0x04
+
+// check if string reg matches current.
+// e.g. reg = "a*b", current = "ab", "acb", "abab" --> true, but "ac" --> false.
+bool linux_win_adapt(string reg, string current, int reg_start = 0u, int current_start = 0u) {
+	// Won't have deadly loop: you will discover
+	int i = reg_start, j = current_start;
+	int cur_try;
+	for (; i < reg.length() && j < current.length(); i++, j++) {
+		switch (reg[i]) {
+			case '*':
+				// Check where the next character is
+				if (i == reg.length() - 1) {
+					// Can surely success.
+					return true;
+				}
+				// Search start from j, j is included
+				cur_try = j;
+				while ((cur_try = current.find(reg[i+1], cur_try)) != string::npos) {
+					if (linux_win_adapt(reg, current, i+1, cur_try)) {
+						return true;
+					}
+				}
+				return false;	// None of the solutions succeeded
+
+				break;
+			case '?':
+				// No comparing
+				break;
+			default:
+				if (reg[i] != current[j]) return false;
+		}
+	}
+	return i == reg.length() && j == current.length();
+}
+
+intValue inline linux_attrib_adapt(string filename, int linux_attr) {
+	int res = 0;
+	if (filename.length() && filename[0] == '.') res |= _A_HIDDEN;
+	if (linux_attr & S_IFSOCK || linux_attr & S_IFBLK || linux_attr & S_IFCHR) res |= _A_SYSTEM;
+	if (linux_attr & S_IFDIR) res |= _A_SUBDIR;
+	return intValue(res);
+}
+
+// mydir should have '\\' in the end
+map<string, intValue> linux_yieldDirectory(string mydir, string matcher, string prefix, bool prohibit_recesuive = false) {
+	DIR *dent;
+	// open it
+	//ifdebug cout << "Call linux yielder: " << mydir << ", " << matcher << ", " << prefix << endl;
+	map<string, intValue> result;
+	const intValue ftyper = intValue("file_info");
+	if ((dent = opendir(mydir.c_str())) == nullptr) {
+		//ifdebug cout << "Opener failed: " << errno << endl;
+		return { {prefix + "__has_error__", intValue(1)} };
+	}
+	dirent *dire;
+	struct stat state;
+	while ((dire = readdir(dent))) {
+		string dname = dire->d_name;
+		if (dname == "." || dname == "..") continue;
+		string pname = mydir + dname;
+		//ifdebug cout << "Yield path: " << pname << endl;
+		string hf = prefix + pname;
+		if (!linux_win_adapt(mydir + matcher, pname)) {
+			//ifdebug cout << "Match fail" << endl;
+			continue;
+		}
+		if (stat(pname.c_str(), &state) < 0) {
+			result[prefix + "__has_error__"] = intValue(1);
+			continue;
+		}
+		if (S_ISDIR(state.st_mode) && (!prohibit_recesuive)) {
+			auto yres = linux_yieldDirectory(pname + '/', matcher, prefix, false);
+			result.insert(yres.begin(), yres.end());
+		}
+		result[hf + ".__type__"] = ftyper;
+		result[hf + ".attrib"] = linux_attrib_adapt(dname, state.st_mode);
+		result[hf + ".time_access"] = intValue(state.st_atime);
+		result[hf + ".time_write"] = intValue(state.st_mtime);
+		result[hf + ".time_create"] = intValue(state.st_ctime);
+		result[hf + ".size"] = intValue(state.st_size);
+		result[hf + ".linux_attrib"] = intValue(state.st_mode);
+	}
+	closedir(dent);
+	return result;
+}
+#endif
+
 // mydir should have '\\' in the end
 // Will return something to serial unless __is_recesuive = true
 // TODO: Change it into map<string, string> returns
 // *** var_prefix REQUIRES '.' ***
 map<string, intValue> yieldDirectory(string mydir, string matcher, string var_prefix, bool prohibit_recesuive = false, bool __is_recesuive = false) {
+#ifdef _WIN32
 	fileinfo f;
 	finder_handle handler = _findfirst((mydir + matcher).c_str(), &f);
 	const intValue ftyper = intValue("file_info");
 	map<string, intValue> result;
 	if (handler < 0) {
-		return { {".__has_error__", intValue(1)} };
+		return { {var_prefix + "__has_error__", intValue(1)} };
 	}
 	do {
 		string sfname = f.name;
@@ -51,7 +159,11 @@ map<string, intValue> yieldDirectory(string mydir, string matcher, string var_pr
 	} while (!_findnext(handler, &f));
 	_findclose(handler);
 	return result;
+#else
+	return linux_yieldDirectory(mydir, matcher, var_prefix, prohibit_recesuive);
+#endif
 }
+#undef error_dict
 #pragma warning(enable:C4244)
 
 
@@ -2017,6 +2129,7 @@ else if_have_additional_op('<') {
 			else if (codexec[0] == "__dev__") {
 				if (codexec.size() >= 2) {
 					if (codexec[1] == "time_set") {
+#ifdef _WIN32
 						SYSTEMTIME sys;
 						GetLocalTime(&sys);
 						myenv["this.year"] = intValue(sys.wYear);
@@ -2027,6 +2140,28 @@ else if_have_additional_op('<') {
 						myenv["this.second"] = intValue(sys.wSecond);
 						myenv["this.ms"] = intValue(sys.wMilliseconds);
 						myenv["this.week"] = intValue(sys.wDayOfWeek);
+#else
+						// Linux time method:
+						time_t cur = time(nullptr);
+						tm* localt = localtime(&cur);
+						myenv["this.year"] = intValue(localt->tm_year + 1900);
+						myenv["this.month"] = intValue(localt->tm_mon + 1);
+						myenv["this.day"] = intValue(localt->tm_mday);
+						myenv["this.hour"] = intValue(localt->tm_hour);
+						myenv["this.minute"] = intValue(localt->tm_min);
+						myenv["this.second"] = intValue(localt->tm_sec);
+						myenv["this.ms"] = intValue(0);
+						// Predict week: Zellar formula
+						int _year = localt->tm_year;
+						int _month = localt->tm_mon;
+						if (_month < 3) {
+							_month += 12;
+							_year--;
+						}
+						int _c = _year / 100 - 1, _y = _year % 100;
+						int _w = (_c/4) - (2*_c) + _y + (_y/4) + (13 * (_month+1) / 5) + localt->tm_mday - 1;
+						myenv["this.week"] = intValue(_w % 7);
+#endif
 					}
 					else if (beginWith(codexec[1], "bad_property")) {
 						vector<string> codexec2 = split(codexec[1], ' ', 1);
@@ -2163,6 +2298,7 @@ else if_have_additional_op('<') {
 			}
 			if (codexec.size() >= 4) proh_rec = calculate(codexec[3], env).numeric;
 			auto result = yieldDirectory(calculate(codexec[1], env).str, calculate(codexec[2], env).str, codexec[0] + '.');
+			//ifdebug cout << "Length of result: " << result.size() << endl;
 			env.insert(result.begin(), result.end());
 			env[codexec[0]] = null;
 			env[codexec[0] + ".__type__"] = intValue("yield_result");
@@ -2274,13 +2410,21 @@ else if_have_additional_op('<') {
 		}
 #pragma endregion
 		// Get my directory
+#ifdef _WIN32
 		size_t p = env_name.find_last_of('\\');
+#else
+		size_t p = env_name.find_last_of('/');
+#endif
 		string env_dir;	// Directly add file name.
 		if (p <= 0) {
 			env_dir = "";
 		}
 		else {
+#ifdef _WIN32
 			env_dir = env_name.substr(0, p) + '\\';
+#else
+			env_dir = env_name.substr(0, p) + '/';
+#endif
 		}
 		include_sources.insert(include_sources.begin(), env_dir);	// search at first
 		//bool bmain_fail = false;

@@ -64,7 +64,7 @@ struct intValue {
 			return intValue(this->str);
 		}
 		else {
-			return null;
+			return intValue();
 		}
 	}
 
