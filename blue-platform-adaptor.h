@@ -44,6 +44,7 @@ enum environ_type {
 	windows,
 	linux,
 	unix,
+	mac,
 	other
 };
 
@@ -65,6 +66,8 @@ using finder_handle = long;
 #define environ_type environ_type::linux
 #elif defined(__unix__)
 #define environ_type environ_type::unix
+#elif defined(__APPLE__)
+#define environ_type environ_type::mac
 #else
 #define environ_type environ_type::other
 #endif

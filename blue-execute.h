@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include "blue-lib.h"
 #include "blue-platform-adaptor.h"
 #if defined(__linux__)
@@ -31,6 +32,15 @@ int removeDirectory(string dirname) {
 
 #pragma warning(disable:C4244)
 
+struct yield_returner {
+	map<string, intValue> mdata;
+	vector<string> files;
+	
+	yield_returner(map<string, intValue> mdata, vector<string> files) : mdata(mdata), files(files) {
+	
+	}
+};
+
 #ifndef _WIN32
 
 #define _A_ARCH 0x20
@@ -60,6 +70,7 @@ bool linux_win_adapt(string reg, string current, int reg_start = 0u, int current
 					if (linux_win_adapt(reg, current, i+1, cur_try)) {
 						return true;
 					}
+					cur_try++;
 				}
 				return false;	// None of the solutions succeeded
 
@@ -83,15 +94,16 @@ intValue inline linux_attrib_adapt(string filename, int linux_attr) {
 }
 
 // mydir should have '\\' in the end
-map<string, intValue> linux_yieldDirectory(string mydir, string matcher, string prefix, bool prohibit_recesuive = false) {
+yield_returner linux_yieldDirectory(string mydir, string matcher, string prefix, bool prohibit_recesuive = false) {
 	DIR *dent;
 	// open it
 	//ifdebug cout << "Call linux yielder: " << mydir << ", " << matcher << ", " << prefix << endl;
 	map<string, intValue> result;
+	vector<string> files;
 	const intValue ftyper = intValue("file_info");
 	if ((dent = opendir(mydir.c_str())) == nullptr) {
 		//ifdebug cout << "Opener failed: " << errno << endl;
-		return { {prefix + "__has_error__", intValue(1)} };
+		return yield_returner({ {prefix + "__has_error__", intValue(1)} }, {});
 	}
 	dirent *dire;
 	struct stat state;
@@ -111,8 +123,10 @@ map<string, intValue> linux_yieldDirectory(string mydir, string matcher, string 
 		}
 		if (S_ISDIR(state.st_mode) && (!prohibit_recesuive)) {
 			auto yres = linux_yieldDirectory(pname + '/', matcher, prefix, false);
-			result.insert(yres.begin(), yres.end());
+			result.insert(yres.mdata.begin(), yres.mdata.end());
+			files.insert(files.end(), yres.files.begin(), yres.files.end());
 		}
+		files.push_back(pname);
 		result[hf + ".__type__"] = ftyper;
 		result[hf + ".attrib"] = linux_attrib_adapt(dname, state.st_mode);
 		result[hf + ".time_access"] = intValue(state.st_atime);
@@ -122,28 +136,29 @@ map<string, intValue> linux_yieldDirectory(string mydir, string matcher, string 
 		result[hf + ".linux_attrib"] = intValue(state.st_mode);
 	}
 	closedir(dent);
-	return result;
+	return yield_returner(result, files);
 }
 #endif
 
 // mydir should have '\\' in the end
 // Will return something to serial unless __is_recesuive = true
-// TODO: Change it into map<string, string> returns
 // *** var_prefix REQUIRES '.' ***
-map<string, intValue> yieldDirectory(string mydir, string matcher, string var_prefix, bool prohibit_recesuive = false, bool __is_recesuive = false) {
+yield_returner yieldDirectory(string mydir, string matcher, string var_prefix, bool prohibit_recesuive = false, bool __is_recesuive = false) {
 #ifdef _WIN32
 	fileinfo f;
 	finder_handle handler = _findfirst((mydir + matcher).c_str(), &f);
 	const intValue ftyper = intValue("file_info");
 	map<string, intValue> result;
+	vector<string> files;
 	if (handler < 0) {
-		return { {var_prefix + "__has_error__", intValue(1)} };
+		return yield_returner({ {var_prefix + "__has_error__", intValue(1)} }, {});
 	}
 	do {
 		string sfname = f.name;
 		if (sfname == "." || sfname == "..") continue;
 		//result += blue_fileinfo(f).serial(mydir);
 		string hf = var_prefix + mydir + sfname;
+		files.push_back(mydir + sfname);
 		result[hf + ".__type__"] = ftyper;
 		result[hf + ".attrib"] = intValue(f.attrib);
 		result[hf + ".time_access"] = intValue(f.time_access);
@@ -153,12 +168,13 @@ map<string, intValue> yieldDirectory(string mydir, string matcher, string var_pr
 		if (f.attrib & _A_SUBDIR) {
 			if (!prohibit_recesuive) {
 				auto yres = yieldDirectory(mydir + sfname + '\\', matcher, var_prefix, false, true);
-				result.insert(yres.begin(), yres.end());
+				result.insert(yres.mdata.begin(), yres.mdata.end());
+				files.insert(files.end(), yres.files.begin(), yres.files.end());
 			}
 		}
 	} while (!_findnext(handler, &f));
 	_findclose(handler);
-	return result;
+	return yield_returner(result, files);
 #else
 	return linux_yieldDirectory(mydir, matcher, var_prefix, prohibit_recesuive);
 #endif
@@ -446,42 +462,6 @@ public:
 					argname = split(args, ' ');
 				}
 				if (args.length()) {
-					// TODO: Test various function calls after that
-					/*bool str = false, dmode = false;
-					if (spl.size() >= 2) {	// Procees with arguments ...
-						int quotes = 0;
-						string tmp = "";
-						for (auto &i : spl[1]) {
-							if (i == '(' && (!str)) {
-								if (quotes) tmp += i;
-								quotes++;
-							}
-							else if (i == ')' && (!str)) {
-								quotes--;
-								if (quotes) tmp += i;
-							}
-							else if (i == '\\' && (!dmode)) {
-								dmode = true;
-								tmp += i;
-							}
-							else if (i == '"' && (!dmode)) {
-								str = !str;
-								tmp += i;
-							}
-							else if (i == ',' && (!quotes) && (!str)) {
-								arg.push_back(tmp);
-								tmp = "";
-							}
-							else {
-								tmp += i;
-							}
-							dmode = false;
-						}
-						if (tmp.length()) arg.push_back(tmp);
-					}
-					else {
-						if (spl.size() >= 2) arg.push_back(spl[1]);
-					}*/
 					arg = parameterSplit(spl[1]);
 					if (!array_arg.length()) {
 						if (arg.size() != argname.size()) {
@@ -2297,9 +2277,14 @@ else if_have_additional_op('<') {
 				return null;
 			}
 			if (codexec.size() >= 4) proh_rec = calculate(codexec[3], env).numeric;
-			auto result = yieldDirectory(calculate(codexec[1], env).str, calculate(codexec[2], env).str, codexec[0] + '.');
-			//ifdebug cout << "Length of result: " << result.size() << endl;
-			env.insert(result.begin(), result.end());
+			auto cpre = codexec[0] + '.';
+			auto result = yieldDirectory(calculate(codexec[1], env).str, calculate(codexec[2], env).str, cpre);
+			env.insert(result.mdata.begin(), result.mdata.end());
+			size_t counter = 0;
+			for (auto &i : result.files) {
+				env[codexec[0] + '.' + to_string(counter++)] = intValue(i);
+			}
+			env[codexec[0] + ".length"] = counter;
 			env[codexec[0]] = null;
 			env[codexec[0] + ".__type__"] = intValue("yield_result");
 			return null;
@@ -2364,7 +2349,7 @@ else if_have_additional_op('<') {
 			return res;
 #elif defined(__linux__)
 			void *dlib = dlopen(dllname.c_str(), RTLD_NOW);
-			blue_dcaller func = dlsym(dlib, funcname.c_str());
+			blue_dcaller func = (blue_dcaller)dlsym(dlib, funcname.c_str());
 			auto res = func(&new_env);
 			dlclose(dlib);
 			return res;
