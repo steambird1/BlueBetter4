@@ -268,19 +268,65 @@ public:
 	}
 
 	string curexp(string exp, varmap &myenv) {
-		vector<string> dasher = split(exp, ':', 1);
-		if (dasher.size() == 1) return exp;
+		//vector<string> dasher = split(exp, ':', 1);
+		//if (dasher.size() == 1) return exp;
 		// Not the connection!
-		return dasher[0] + "." + calculate(dasher[1], myenv).str;
+		//return dasher[0] + "." + calculate(dasher[1], myenv).str;
+		string operand = "", actual = "";
+		for (size_t i = 0; i < exp.length(); i++) {
+			int stack = 0;
+			bool disengage_stack = true;//, drive_break = false;
+			string qu_expr = "";
+			switch (exp[i]) {
+			case '(': case ')':
+				break;	// No meaning
+			case ':':
+				i++;	// Initially skip ':'
+				for (; i < exp.length() && ((stack > 0) || disengage_stack); i++) {
+					switch (exp[i]) {
+					case '(':
+						disengage_stack = false;
+						stack++;
+						break;
+					case ')':
+						disengage_stack = false;
+						stack--;
+						break;
+					//case ':':						// Don't deal with it - to keep the behavior samely undefined
+					//	drive_break = true;
+					//	break;
+					default:
+						break;
+					}
+					//if (drive_break) {
+					//	drive_break = false;
+					//	break;
+					//}
+					if (stack >= 0) qu_expr += exp[i];	// To avoid irregular ")"
+				}
+				i--;	// Avoid another jump
+				//if (actual.length() && operand.length() && operand[operand.length() -1]!='.') actual.push_back('.');	// There's no need...
+				actual += operand + '.' + calculate(qu_expr, myenv).str;
+				operand = "";
+				break;
+			default:
+				operand += exp[i];
+			}
+		}
+		if (operand.length()) {
+			//if (actual.length()) actual.push_back('.');	// Can only be "." on its own.
+			actual += operand;
+		}
+		return actual;
 	}
 
 	inline string auto_curexp(string exp, varmap &myenv) {
-		if (exp.find(':') != string::npos) {
+		//if (exp.find(':') != string::npos) {
 			return curexp(exp, myenv);
-		}
-		else {
-			return exp;
-		}
+		//}
+		//else {
+		//	return exp;
+		//}
 	}
 
 	void raiseError(intValue raiseValue, varmap &myenv, string source_function = "Unknown source", size_t source_line = 0, double error_id = 0, string error_desc = "") {
@@ -620,8 +666,9 @@ public:
 		case '(': case ')':
 			break;
 		case ':':
-			// As for this, 'first' should be direct var-name
-			return vm[first.str + "." + second.str];
+			// As for this, 'first' should be direct var-name (* The final value is sometimes function!)
+			//return vm[first.str + "." + second.str];
+			return getValue(first.str + "." + second.str, vm);
 			break;
 		case '#':
 			// To get a position for string, or power for integer.
@@ -1155,9 +1202,9 @@ else if_have_additional_op('<') {
 					codexec2[0].erase(codexec2[0].begin());
 					codexec2[0] = calculate(codexec2[0], myenv).str;
 				}
-				else if (codexec2[0].find(":") != string::npos) {
+				//else if (codexec2[0].find(":") != string::npos) {
 					codexec2[0] = curexp(codexec2[0], myenv);
-				}
+				//}	// Always execute
 				// End of resolver
 				if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
 					raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
@@ -1196,18 +1243,18 @@ else if_have_additional_op('<') {
 				else if (beginWith(codexec2[1], "referof ")) {
 					vector<string> codexec3 = split(codexec2[1], ' ', 1);
 					parameter_check3(2, "Operator number");
-					if (codexec3[1].find(':') != string::npos) {
+					//if (codexec3[1].find(':') != string::npos) {
 						codexec3[1] = curexp(codexec3[1], myenv);
-					}
+					//}
 					myenv.set_referrer(codexec2[0], codexec3[1], &myenv);
 				}
 				else if (beginWith(codexec2[1], "copyof")) {
 					// Copy referrer (directly from its info) or copy value. Therefore, something like 'list' should be changed.
 					vector<string> codexec3 = split(codexec2[1], ' ', 1);
 					parameter_check3(2, "Operator number");
-					if (codexec3[1].find(':') != string::npos) {
+					//if (codexec3[1].find(':') != string::npos) {
 						codexec3[1] = curexp(codexec3[1], myenv);
-					}
+					//}
 					if (myenv.have_referrer(codexec3[1])) {
 						myenv.transform_referrer_from(codexec2[0], myenv, codexec3[1]);
 					}
@@ -1296,9 +1343,9 @@ else if_have_additional_op('<') {
 					raise_ce("__typeof is deprecated. You shouldn't use it anymore. Please use obj.__type__ or typeof obj.");
 					vector<string> codexec3 = split(codexec2[1], ' ', 1);
 					parameter_check3(2, "Operator number");
-					if (codexec3[1].find(':') != string::npos) {
+					//if (codexec3[1].find(':') != string::npos) {
 						codexec3[1] = curexp(codexec3[1], myenv);
-					}
+					//}
 					myenv[codexec2[0]] = myenv[codexec3[1] + ".__type__"];
 				}
 				else if (beginWith(codexec2[1], "__inheritanceof")) {
@@ -1311,9 +1358,9 @@ else if_have_additional_op('<') {
 					}
 					else {
 						for (auto &i : codexec4) {
-							if (i.find(':') != string::npos) {
+							//if (i.find(':') != string::npos) {
 								i = curexp(i, myenv);
-							}
+							//}
 						}
 					}
 					if (myenv[codexec4[0] + ".__type__"].isNull || myenv[codexec4[0] + ".__type__"].str == "class") {
@@ -1331,9 +1378,9 @@ else if_have_additional_op('<') {
 				else if (beginWith(codexec2[1], "__membersof")) {
 					vector<string> codexec3 = split(codexec2[1], ' ', 1);
 					parameter_check3(2, "Operator number");
-					if (codexec3[1].find(':') != string::npos) {
+					//if (codexec3[1].find(':') != string::npos) {
 						codexec3[1] = curexp(codexec3[1], myenv);
-					}
+					//}
 					auto result = myenv.get_member(codexec3[1]);
 					generateClass(codexec2[0], "list", myenv);
 					for (size_t i = 0; i < result.size(); i++) {
@@ -1471,9 +1518,9 @@ else if_have_additional_op('<') {
 					codexec2[0].erase(codexec2[0].begin());
 					codexec2[0] = calculate(codexec2[0], myenv).str;
 				}
-				else if (codexec2[0].find(":") != string::npos) {
+				//else if (codexec2[0].find(":") != string::npos) {
 					codexec2[0] = curexp(codexec2[0], myenv);
-				}
+				//}
 				if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
 					raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
 					goto add_exp;
@@ -1515,9 +1562,9 @@ else if_have_additional_op('<') {
 					codexec2[0].erase(codexec2[0].begin());
 					codexec2[0] = calculate(codexec2[0], myenv).str;
 				}
-				else if (codexec2[0].find(":") != string::npos) {
+				//else if (codexec2[0].find(":") != string::npos) {
 					codexec2[0] = curexp(codexec2[0], myenv);
-				}
+				//}
 				if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
 					raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
 					goto add_exp;
@@ -1761,9 +1808,9 @@ else if_have_additional_op('<') {
 				parameter_check(2);
 				if (codexec[1].length()) codexec[1].pop_back();
 				vector<string> codexec2 = split(codexec[1], '=', 1);
-				if (codexec2[0].find(":") != string::npos) {
+				//if (codexec2[0].find(":") != string::npos) {
 					codexec2[0] = curexp(codexec2[0], myenv);
-				}
+				//}
 				vector<string> rangeobj = split(codexec2[1], '~');
 				intValue stepper = 1, current;
 				if (rangeobj.size() >= 3) stepper = calculate(rangeobj[2], myenv);
@@ -1868,9 +1915,9 @@ else if_have_additional_op('<') {
 						vector<string> codexec4 = split(codexec3[1], ',', 1);
 						int n = 0;
 						while (files.count(++n));
-						if (codexec3[0].find(":") != string::npos) {
+						//if (codexec3[0].find(":") != string::npos) {
 							codexec3[0] = curexp(codexec3[0], myenv);
-						}
+						//}
 						myenv[codexec3[0]] = intValue(n);
 						intValue ca = calculate(codexec4[0], myenv);
 						string fn = ca.str;
@@ -1888,9 +1935,9 @@ else if_have_additional_op('<') {
 						vector<string> codexec4 = split(codexec3[1], ',', 1);
 						int n = 0;
 						while (files.count(++n));
-						if (codexec3[0].find(":") != string::npos) {
+						//if (codexec3[0].find(":") != string::npos) {
 							codexec3[0] = curexp(codexec3[0], myenv);
-						}
+						//}
 						myenv[codexec3[0]] = intValue(n);
 						intValue ca = calculate(codexec4[0], myenv);
 						string fn = ca.str;
@@ -1909,9 +1956,9 @@ else if_have_additional_op('<') {
 							string res = "";
 							char c;
 							while ((!feof(files[fid])) && (c = fgetc(files[fid])) != '\n') res += c;
-							if (codexec3[0].find(":") != string::npos) {
+							//if (codexec3[0].find(":") != string::npos) {
 								codexec3[0] = curexp(codexec3[0], myenv);
-							}
+							//}
 							myenv[codexec3[0]] = intValue(res);
 						}
 						else {
@@ -1954,9 +2001,9 @@ else if_have_additional_op('<') {
 							size_t len = getLength(fid);
 							char *buf = new char[len + 2];
 							fread(buf, sizeof(char), len, files[fid]);
-							if (codexec3[0].find(":") != string::npos) {
+							//if (codexec3[0].find(":") != string::npos) {
 								codexec3[0] = curexp(codexec3[0], myenv);
-							}
+							//}
 							string &cn = codexec3[0];
 							//myenv[cn + ".__type__"] = "list";
 							generateClass(cn, "list", myenv, false);	// Accerlation
@@ -1978,9 +2025,9 @@ else if_have_additional_op('<') {
 						int fid = calculate(codexec4[0], myenv).numeric;
 						bool rs = files.count(fid) ? feof(files[fid]) : 0;
 						if (files.count(fid) && !rs) {
-							if (codexec4[1].find(":") != string::npos) {
+							//if (codexec4[1].find(":") != string::npos) {
 								codexec4[1] = curexp(codexec4[1], myenv);
-							}
+							//}
 							string &cn = codexec4[1];
 							if (inh_map.is_same(myenv[cn + ".__type__"].str, "list")) {
 								long64 clen = myenv[cn + "._length"].numeric;
@@ -2013,9 +2060,9 @@ else if_have_additional_op('<') {
 						codexec3[0].erase(codexec3[0].begin());
 						codexec3[0] = calculate(codexec3[0], myenv).str;
 					}
-					else if (codexec3[0].find(":") != string::npos) {
+					//else if (codexec3[0].find(":") != string::npos) {
 						codexec3[0] = curexp(codexec3[0], myenv);
-					}
+					//}
 					myenv[codexec3[0]] = intValue(mutex_table.count(calculate(codexec3[1], myenv).str));
 				}
 				else {
@@ -2048,9 +2095,9 @@ else if_have_additional_op('<') {
 						codexec3[0].erase(codexec3[0].begin());
 						codexec3[0] = calculate(codexec3[0], myenv).str;
 					}
-					else if (codexec3[0].find(":") != string::npos) {
+					//else if (codexec3[0].find(":") != string::npos) {
 						codexec3[0] = curexp(codexec3[0], myenv);
-					}
+					//}
 					if (codexec2[0] == "test") {
 						if (dispose_result) {
 							raiseError(null, myenv, fname, execptr + 1, 3, "Can't dispose result of 'thread test'");
@@ -2640,9 +2687,9 @@ else if_have_additional_op('<') {
 						codexec2[0].erase(codexec2[0].begin());
 						codexec2[0] = calculate(codexec2[0], myenv).str;
 					}
-					else if (codexec2[0].find(":") != string::npos) {
+					//else if (codexec2[0].find(":") != string::npos) {
 						codexec2[0] = curexp(codexec2[0], myenv);
-					}
+					//}
 					codexec2[0] = curclass + codexec2[0];
 					if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
 						raise_ce(string("Cannot set a value of constant: ") + codexec2[0] + " (this could be because of a redeclaration)");
