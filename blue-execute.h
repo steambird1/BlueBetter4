@@ -1178,14 +1178,19 @@ else if_have_additional_op('<') {
 			}
 			else if (codexec[0] == "set" || codexec[0] == "declare") {
 				static const string const_sign = "const ";	// set a=const ...
+				static const string preserve_sign = "preserve ";
 				parameter_check(2);
 				vector<string> codexec2 = split(codexec[1], '=', 1);
 				parameter_check2(2, codexec[0]);
 				string external_op = "", &czero = codexec2[0];
-				bool constant = false;
+				bool constant = false, preserve = false;
 				if (beginWith(codexec2[1], const_sign)) {
 					constant = true;
 					codexec2[1] = codexec2[1].substr(const_sign.length());
+				}
+				else if (beginWith(codexec2[1], preserve_sign)) {
+					preserve = true;
+					codexec2[1] = codexec2[1].substr(preserve_sign.length());
 				}
 				char det;
 				// Only 2 layers' detect, reversely
@@ -1238,7 +1243,7 @@ else if_have_additional_op('<') {
 					myenv[codexec2[0]] = myenv.traditional_serial(codexec3[1]);
 				}
 				else if (codexec2[1] == "clear" || codexec2[1] == "null") {
-					myenv.tree_clean(codexec2[0]);
+					if (!preserve) myenv.tree_clean(codexec2[0]);
 				}
 				else if (beginWith(codexec2[1], "referof ")) {
 					vector<string> codexec3 = split(codexec2[1], ' ', 1);
@@ -1465,12 +1470,14 @@ else if_have_additional_op('<') {
 						if (external_op.length()) {
 							raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
 						}
+						if (!preserve) myenv.tree_clean(codexec2[0]);
 						myenv.deserial(codexec2[0], res.serial_data);
 					}
 					else if (external_op.length()) {
 						myenv[codexec2[0]] = primary_calculate(myenv[codexec2[0]], external_op, res, myenv);
 					}
 					else {
+						if (!preserve) myenv.tree_clean(codexec2[0]);
 						myenv[codexec2[0]] = res;
 					}
 				}
