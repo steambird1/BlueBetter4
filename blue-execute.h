@@ -1207,19 +1207,18 @@ else if_have_additional_op('<') {
 					codexec2[0].erase(codexec2[0].begin());
 					codexec2[0] = calculate(codexec2[0], myenv).str;
 				}
-				//else if (codexec2[0].find(":") != string::npos) {
-					codexec2[0] = curexp(codexec2[0], myenv);
-				//}	// Always execute
+				codexec2[0] = curexp(codexec2[0], myenv); // Always execute
 				// End of resolver
 				if (codexec2[0].find(".__const__") != string::npos || myenv[codexec2[0] + ".__const__"].str == "1") {
 					raise_ce(string("Cannot set a value of constant: ") + codexec2[0]);
 					goto add_exp;
 				}
-				if (constant) {
-					myenv[codexec2[0] + ".__const__"] = intValue("1");
-				}
 				if (codexec[0] == "declare") {
 					myenv.declare(codexec2[0]);
+				}
+				else if (!preserve) myenv.tree_clean(codexec2[0]);
+				if (constant) {
+					myenv[codexec2[0] + ".__const__"] = intValue("1");
 				}
 				if (codexec2[1].length() > 4 && codexec2[1].substr(0, 4) == "new ") {
 					vector<string> azer = split(codexec2[1], ' ');	// Classname is azer[1]
@@ -1470,14 +1469,12 @@ else if_have_additional_op('<') {
 						if (external_op.length()) {
 							raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
 						}
-						if (!preserve) myenv.tree_clean(codexec2[0]);
 						myenv.deserial(codexec2[0], res.serial_data);
 					}
 					else if (external_op.length()) {
 						myenv[codexec2[0]] = primary_calculate(myenv[codexec2[0]], external_op, res, myenv);
 					}
 					else {
-						if (!preserve) myenv.tree_clean(codexec2[0]);
 						myenv[codexec2[0]] = res;
 					}
 				}
