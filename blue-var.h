@@ -102,14 +102,16 @@ struct intValue {
 
 	// Usually use for debug proposes
 	void output() {
+		DWORD prec = nowcolor;
 		if (isNull) {
+			setColor(FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
 			cout << "null";
 		}
 		else if (isNumeric) {
-			cout << "num:" << numeric;
+			setColor(FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+			cout << numeric;
 		}
 		else if (isObject) {
-			DWORD prec = nowcolor;
 			setColor(FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
 			cout << "<" << serial_data["__type__"].str << " object at " << (this) << ">" << endl;
 			if (current_output != least) {
@@ -125,16 +127,27 @@ struct intValue {
 						cout << "null" << endl;
 						continue;
 					}
-					setColor(FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-					cout << i.second.str;
+					else if (i.second.isObject) {
+						setColor(FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+						cout << "<object>";
+					}
+					else if (i.second.isNumeric) {
+						setColor(FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+						cout << i.second.numeric;
+					}
+					else {
+						setColor(FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+						cout << i.second.str;
+					}
 					cout << endl;
 				}
 			}
-			setColor(prec);
 		}
 		else {
-			cout << "str:" << str;
+			setColor(FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+			cout << str;
 		}
+		setColor(prec);
 	}
 
 	string unformat() {
