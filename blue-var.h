@@ -108,7 +108,7 @@ struct intValue {
 			cout << "null";
 		}
 		else if (isNumeric) {
-			setColor(FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+			setColor(FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
 			cout << numeric;
 		}
 		else if (isObject) {
@@ -132,7 +132,7 @@ struct intValue {
 						cout << "<object>";
 					}
 					else if (i.second.isNumeric) {
-						setColor(FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+						setColor(FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
 						cout << i.second.numeric;
 					}
 					else {
