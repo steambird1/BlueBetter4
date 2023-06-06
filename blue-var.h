@@ -487,9 +487,10 @@ public:
 		this->set_global(name, null);
 		release_perm();
 	}
-	void tree_clean(string name) {
+	void tree_clean(string name, bool reserve_the_position = true) {
 		wait_for_perm();
 		if (have_referrer(name)) {
+			// Can't reserve any position (referrer is global ...)
 			this->clean_referrer(name);
 			release_perm();
 			return;
@@ -508,6 +509,7 @@ public:
 				for (auto &j : to_delete) {
 					i->erase(j);
 				}
+				if (reserve_the_position) (*i)[name] = null;
 				release_perm();
 				return;
 			}

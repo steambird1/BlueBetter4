@@ -9,7 +9,7 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test2.blue";
+	string code = "", file = "test4.blue";
 	ip.in_debug = true;
 	ip.no_lib = false;
 
