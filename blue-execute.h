@@ -2438,6 +2438,14 @@ else if_have_additional_op('<') {
 		intcalls["__bnot"] = [this](string args, varmap &env) -> intValue {
 			return ~ulong64(calculate(args, env).numeric);
 		};
+		intcalls["__match"] = [this](string args, varmap &env) -> intValue {
+			vector<string> codexec = parameterSplit(args);
+			if (codexec.size() < 2) {
+				raiseError(null, env, "Matcher", 0, 6, "Bad grammar");
+				return null;
+			}
+			return intValue(regex_match(calculate(codexec[0], env).str, calculate(codexec[1], env).str));
+		};
 		// It is better to add more functions by intcalls, not set
 #define math_extension(funame) intcalls["_maths_" #funame] = [this](string args, varmap &env) -> intValue { \
 		return intValue(funame(calculate(args, env).numeric)); \

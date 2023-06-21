@@ -376,6 +376,10 @@ function find_last origin finder:
 			set matcher=tmp
 	return -1
 
+function regex mask origin:
+	call res=__match,mask,origin
+	return res
+
 function make_list ...obj:
 	return obj
 
