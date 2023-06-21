@@ -41,6 +41,43 @@ struct yield_returner {
 	}
 };
 
+// This is also used for Windows RegEx-Like support.
+// check if string reg matches current.
+// e.g. reg = "a*b", current = "ab", "acb", "abab" --> true, but "ac" --> false.
+bool regex_match(string reg, string current, int reg_start = 0u, int current_start = 0u) {
+	// Won't have deadly loop: you will discover
+	int i = reg_start, j = current_start;
+	int cur_try;
+	for (; i < reg.length() && j < current.length(); i++, j++) {
+		switch (reg[i]) {
+		case '*':
+			// Check where the next character is
+			if (i == reg.length() - 1) {
+				// Can surely success.
+				return true;
+			}
+			// Search start from j, j is included
+			cur_try = j;
+			while ((cur_try = current.find(reg[i + 1], cur_try)) != string::npos) {
+				if (regex_match(reg, current, i + 1, cur_try)) {
+					return true;
+				}
+				cur_try++;
+			}
+			return false;	// None of the solutions succeeded
+
+			break;
+		case '?':
+			// No comparing
+			break;
+		default:
+			if (reg[i] != current[j]) return false;
+		}
+	}
+	return i == reg.length() && j == current.length();
+}
+
+
 #ifndef _WIN32
 
 #define _A_ARCH 0x20
@@ -50,39 +87,8 @@ struct yield_returner {
 #define _A_SUBDIR 0x10
 #define _A_SYSTEM 0x04
 
-// check if string reg matches current.
-// e.g. reg = "a*b", current = "ab", "acb", "abab" --> true, but "ac" --> false.
 bool linux_win_adapt(string reg, string current, int reg_start = 0u, int current_start = 0u) {
-	// Won't have deadly loop: you will discover
-	int i = reg_start, j = current_start;
-	int cur_try;
-	for (; i < reg.length() && j < current.length(); i++, j++) {
-		switch (reg[i]) {
-			case '*':
-				// Check where the next character is
-				if (i == reg.length() - 1) {
-					// Can surely success.
-					return true;
-				}
-				// Search start from j, j is included
-				cur_try = j;
-				while ((cur_try = current.find(reg[i+1], cur_try)) != string::npos) {
-					if (linux_win_adapt(reg, current, i+1, cur_try)) {
-						return true;
-					}
-					cur_try++;
-				}
-				return false;	// None of the solutions succeeded
-
-				break;
-			case '?':
-				// No comparing
-				break;
-			default:
-				if (reg[i] != current[j]) return false;
-		}
-	}
-	return i == reg.length() && j == current.length();
+	return regex_match(reg, current, reg_start, current_start);
 }
 
 intValue inline linux_attrib_adapt(string filename, int linux_attr) {
@@ -127,6 +133,7 @@ yield_returner linux_yieldDirectory(string mydir, string matcher, string prefix,
 			files.insert(files.end(), yres.files.begin(), yres.files.end());
 		}
 		files.push_back(pname);
+		result[hf] = null;
 		result[hf + ".__type__"] = ftyper;
 		result[hf + ".attrib"] = linux_attrib_adapt(dname, state.st_mode);
 		result[hf + ".time_access"] = intValue(state.st_atime);
@@ -159,6 +166,7 @@ yield_returner yieldDirectory(string mydir, string matcher, string var_prefix, b
 		//result += blue_fileinfo(f).serial(mydir);
 		string hf = var_prefix + mydir + sfname;
 		files.push_back(mydir + sfname);
+		result[hf] = null;
 		result[hf + ".__type__"] = ftyper;
 		result[hf + ".attrib"] = intValue(f.attrib);
 		result[hf + ".time_access"] = intValue(f.time_access);
@@ -353,7 +361,7 @@ public:
 
 	// If save_quote, formatting() will not process anything inside quote.
 	// If multithreading, run() will be async and the function WILL RETURN NULL (since I don't "promise").
-	intValue getValue(string single_expr, varmap &vm, bool save_quote = false, int multithreading = -1) {
+	intValue getValue(string single_expr, varmap &vm, bool save_quote = false, int multithreading = -1, bool no_func_para = false) {
 		if (single_expr == "null" || single_expr == "") return null;
 		// Remove any '(' in front
 		while (single_expr.length() && single_expr[0] == '(') {
@@ -397,7 +405,13 @@ public:
 			return atof(single_expr.c_str()) * neg;
 		}
 		else {
-			vector<string> spl = split(single_expr, ' ', 1);
+			vector<string> spl;
+			if (no_func_para) {
+				spl.push_back(single_expr);
+			}
+			else {
+				spl = split(single_expr, ' ', 1);
+			}
 			if (spl.size() && spl[0].length()) {
 				// Internal expressions here ...
 				if (spl[0][0] == '$') {
@@ -482,6 +496,8 @@ public:
 			else {
 				is_func = vm[spl[0] + ".__type__"].str == "function";
 			}
+			// No function parameter <> No function
+			// Actually here CAN be PROPERTIES
 			if (is_func) {
 				// A function call.
 
@@ -523,7 +539,13 @@ public:
 
 					for (size_t i = 0; i < arg.size(); i++) {
 						// Special character '^' will pass the referer!
-						if (arg[i].length() && arg[i][0] == '^') {
+						// If you want to use brackets: expressions like
+						// ^(a:b)
+						// are acceptable.
+						size_t finder_start = 0;
+						for (; finder_start < arg[i].length() && arg[i][finder_start] == '('; finder_start++);
+						if (arg[i].length() && arg[i][finder_start] == '^') {
+							arg[i] = arg[i].substr(finder_start, arg[i].length() - (2 * finder_start));	// Remove right quotes
 							string rname = auto_curexp(arg[i].substr(1), vm);
 							if (vm.have_referrer(rname)) {
 								if (array_arg.length()) {
@@ -668,7 +690,7 @@ public:
 		case ':':
 			// As for this, 'first' should be direct var-name (* The final value is sometimes function!)
 			//return vm[first.str + "." + second.str];
-			return getValue(first.str + "." + second.str, vm);
+			return getValue(first.str + "." + second.str, vm, false, -1, true);
 			break;
 		case '#':
 			// To get a position for string, or power for integer.
