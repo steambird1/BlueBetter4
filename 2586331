@@ -1,0 +1,495 @@
+class exception:
+	init:
+		# Do nothing, reserved class
+
+class object:
+	init:
+		# Empty class, do nothing
+
+class yield_result:
+	inherits object
+
+class file_info:
+	inherits object
+
+class list:
+	hidden _length
+	init:
+		set this._length=0
+	property get length:
+		return this._length
+	property noset length
+	function append data:
+		set this:this._length=copyof data
+		set this._length=this._length+1
+	function remove pos:
+		for i=pos~this._length-1:
+			set this:i=this:(i+1)
+		set this._length=this._length-1
+	function insert pos data:
+		for i=this._length~pos~-1:
+			set this:i=copyof this:(i-1)
+		set this._length=this._length+1
+		set this:pos=copyof data
+	function all:
+		for i=0~this._length:
+			if not (this:i):
+				return false
+		return true
+	function any:
+		for i=0~this._length:
+			if boolean (this:i):
+				return true
+		return false
+	function sum:
+		set tmp=0
+		for i=0~this._length:
+			set tmp=tmp+(this:i)
+		return tmp
+	function concats:
+		set tmp=""
+		for i=0~this._length:
+			set tmp=tmp+(this:i)
+		return tmp
+	function join joiner:
+		set tmp=""
+		for i=0~this._length:
+			set tmp=tmp+(this:i)+joiner
+		return tmp
+	function max:
+		if this._length<1:
+			return null
+		set tmp=this.0
+		for i=1~this._length:
+			if (this:i)>tmp:
+				set tmp=this:i
+		return tmp
+	function min:
+		if this._length<1:
+			return null
+		set tmp=this.0
+		for i=1~this._length:
+			if (this:i)<tmp:
+				set tmp=this:i
+		return tmp
+
+class _basic_file:
+	init:
+		set this.handle=null
+		set this.filename=null
+		set this.operate=null
+		set this.valid=0
+	function isvalid:
+		if this.valid=0:
+			return 0
+		file valid res=this.handle
+		return res
+	function open fn op:
+		set this.filename=fn
+		set this.operate=op
+		file open this.handle=fn,op
+		set this.valid=1
+		set this.valid=this.isvalid
+		return this.valid
+	function close:
+		file close this.handle
+		set this.valid=0
+		set this.filename=null
+		set this.operate=null
+	function length:
+		file len res=this.handle
+		return res
+
+class reader:
+	inherits _basic_file
+	function open fn writeable:
+		set myop="r"
+		if writeable:
+			set myop="r+"
+		run this._basic_file@open fn,myop
+	function read:
+		file read tmp=this.handle
+		return tmp
+	function read_to_end:
+		set v=1
+		set tmp=""
+		while v:
+			file read ln=this.handle
+			set tmp=tmp+ln+LF
+			file valid v=this.handle
+		return tmp
+
+class writer:
+	inherits _basic_file
+	function open fn override readable:
+		set myop=""
+		if override:
+			set myop="w"
+		else:
+			set myop="a"
+		if readable:
+			set myop=myop+"+"
+		run this._basic_file@open fn,myop
+	function write data:
+		file write this.handle,data
+
+class binary_reader:
+	inherits reader
+	function open fn:
+		run this._basic_file@open fn,"rb"
+	function read_binary_to_end:
+		file binary_read tmp=this.handle
+		return tmp
+
+class binary_writer:
+	inherits writer
+	function open fn override:
+		set myop=""
+		if override:
+			set myop="w"
+		else:
+			set myop="a"
+		set myop=myop+"b"
+		run this._basic_file@open fn,myop
+	function write_binary blist:
+		file binary_write this.handle,blist
+
+function random:
+	set tmp=__random
+	return tmp
+
+function random_ranged min_r max_r:
+	return random%(max_r-min_r)+min_r
+
+class reference:
+	shared class
+	shared refdata
+	function put obj:
+		raise "The class 'reference' is a deprecated class, which shouldn't be used anymore."
+		set r=random
+		while not isnull reference.refdata:r:
+			set r=random
+		set reference.refdata:r=obj
+		return r
+	function get point:
+		raise "The class 'reference' is a deprecated class, which shouldn't be used anymore."
+		return reference.refdata:point
+	function sets point obj:
+		raise "The class 'reference' is a deprecated class, which shouldn't be used anymore."
+		set reference.refdata:point=obj
+	function valid point:
+		raise "The class 'reference' is a deprecated class, which shouldn't be used anymore."
+		return not isnull refrence.reference.refdata:point
+	function getexp point:
+		raise "The class 'reference' is a deprecated class, which shouldn't be used anymore."
+		return "reference.refdata."+point
+
+class dict:
+	function count member:
+		set res=ishave (this:member)
+		return res
+	function length:
+		set t=membersof this
+		return t.length
+	function keys:
+		return membersof this
+
+function typeof obj:
+	return obj.__type__
+
+# To consider normal types
+function isobj obj:
+	return not (isnull obj.__type__)
+
+function isint var:
+	set temp=__is_int var
+	return temp
+
+function inheritanceof first second:
+	set temp=__inheritanceof first,second
+	return temp
+
+function membersof obj:
+	set temp=__membersof obj
+	return temp
+
+function isnull obj:
+	if obj=null:
+		return 1
+	else:
+		return 0
+
+function len obj:
+	set temp=__len obj
+	return temp
+
+function not obj:
+	if (boolean obj)=0:
+		return 1
+	else:
+		return 0
+
+function binary_not obj:
+	call res=__bnot,obj
+	return res
+
+function boolean obj:
+	if isnull obj:
+		return 0
+	if obj=0:
+		return 0
+	if len obj=0:
+		return 0
+	return 1
+
+function int_input:
+	set temp=__input_int
+	return temp
+
+function char_input:
+	set temp=__char_input
+	return temp
+
+function str_input:
+	set temp=__str_input
+	return temp
+
+function input:
+	set temp=__input
+	return temp
+
+function atof string:
+	set temp=__int string
+	return temp
+
+function atoi string:
+	return floor (atof string)
+
+function ord char:
+	set temp=__ord char
+	return temp
+
+function chr ascii:
+	set temp=__chr ascii
+	return temp
+
+function floor num:
+	set temp=__intg num
+	return temp
+
+function ceil num:
+	set cmp=__intg num
+	if cmp=num:
+		return num
+	else:
+		set temp=__intg num+1
+		return temp
+
+function time:
+	set temp=__time
+	return temp
+
+function clock:
+	set temp=__clock
+	return temp
+
+function str num:
+	return ""+num
+
+function substr origin begin length:
+	set newstr=""
+	set ender=begin+length
+	if (length<0)|(ender>len origin):
+		set ender=len origin
+	for i=begin~ender:
+		set newstr=newstr+origin#i
+	return newstr
+
+function split origin delimit maxsplit:
+	set res=new list
+	set tmp=""
+	for i=0~len origin:
+		if (origin#i=delimit)&&(res.length<>maxsplit):
+				res.append tmp
+				set tmp=""
+		else:
+			set tmp=tmp+origin#i
+	if (len tmp)>0:
+		res.append tmp
+	return res
+
+function sin x:
+	call res=_maths_sin,x
+	return res
+
+function cos x:
+	call res=_maths_cos,x
+	return res
+
+function tan x:
+	call res=_maths_tan,x
+	return res
+
+function atan x:
+	call res=_maths_atan,x
+	return res
+
+function asin x:
+	call res=_maths_asin,x
+	return res
+
+function acos x:
+	call res=_maths_acos,x
+	return res
+
+function sqrt x:
+	call res=_maths_sqrt,x
+	return res
+
+preset pi=const acos 0.5*3
+
+function trim x:
+	call res=_trim,x
+	return res
+
+function find origin finder:
+	set matcher=0
+	for i=0~len origin:
+		if matcher=len finder:
+			return i-len finder
+		if (origin#i)=(finder#matcher):
+			set matcher=matcher+1
+		else:
+			set matcher=0
+	return -1
+
+function find_last origin finder:
+	set matcher=0
+	set le=len origin
+	set tmp=len finder-1
+	for i=le-1~0~-1:
+		if matcher<0:
+			return i+1
+		if (origin#i)=(finder#matcher):
+			set matcher=matcher-1
+		else:
+			set matcher=tmp
+	return -1
+
+function regex mask origin:
+	call res=__match,mask,origin
+	return res
+
+function make_list ...obj:
+	return obj
+
+function pair first second:
+	set o=new object
+	set o.first=copyof first
+	set o.second=copyof second
+	return o
+
+function make_object ...pairs:
+	set o=new object
+	for i=0~pairs.length:
+		set p=pairs:i
+		set pkey=p.first
+		set pvalue=p.second
+		set o:pkey=pvalue
+	return o
+
+function ctype typename object:
+	set object.__type__=typename
+	return object
+
+class datetime:
+	init:
+		# Add .year, .month, .day, .hour, .minute, .second, .ms, .week by system
+		__dev__ time_set
+
+class datetime_diff:
+	init:
+		set this.hour=0
+		set this.minute=0
+		set this.second=0
+	function compare stamp_a stamp_b:
+		set sec=stamp_b-stamp_a
+		set this.second=sec%60
+		set this.minute=floor (sec/60)%60
+		set this.hour=floor (sec/3600)
+
+class format:
+	shared __add_space
+	hidden fstring
+	init:
+		set this.fstring=""
+	function set_format strs:
+		set this.fstring=strs
+	function __add_space raw_str sp has_zero:
+		set to_add=sp-len raw_str
+		set mask=" "
+		if has_zero:
+			set mask="0"
+		if to_add<1:
+			return raw_str
+		else:
+			return mask*to_add+raw_str
+	function calls ...values:
+		set slen_length=len this.fstring
+		set slen=referof this.fstring
+		set result=""
+		set curptr=0
+		set ord_zero_lb=ord "0"-1
+		set ord_nine_ub=ord "9"+1
+		for i=0~slen_length:
+			if slen#i="%":
+				if slen#(i+1)="%":
+					set result=result+"%"
+				else:
+					set prefixs=""
+					set zfill=false
+					set have_prefix=false
+					set prefix_lens=0
+					while ((ord (slen#(i+1)))>ord_zero_lb)&((ord (slen#(i+1)))<ord_nine_ub):
+						set prefixs=prefixs+slen#(i+1)
+						set i=i+1
+						set have_prefix=true
+					if have_prefix:
+						if prefixs#0="0":
+							set zfill=true
+							set prefixs=substr prefixs,1,-1
+						set prefix_lens=atoi prefixs
+					if slen#(i+1)="s":
+						set result=result+format.__add_space (values:curptr),prefix_lens,zfill
+						set curptr=curptr+1
+					elif slen#(i+1)="d":
+						set result=result+format.__add_space (atoi (values:curptr)),prefix_lens,zfill
+						set curptr=curptr+1
+					elif slen#(i+1)="f":
+						set result=result+format.__add_space (atof (values:curptr)),prefix_lens,zfill
+						set curptr=curptr+1
+					elif slen#(i+1)="c":
+						set result=result+format.__add_space (chr (values:curptr)),prefix_lens,zfill
+						set curptr=curptr+1
+				set i=i+1
+			else:
+				set result=result+(slen#i)
+		return result
+
+function any ...obj:
+	return obj.any
+
+function all ...obj:
+	return obj.all
+
+function sum ...obj:
+	return obj.sum
+
+function concats ...obj:
+	return obj.concats
+
+function max ...obj:
+	return obj.max
+
+function min ...obj:
+	return obj.min
