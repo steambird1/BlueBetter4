@@ -961,7 +961,7 @@ else if_have_additional_op('<') {
 				}
 				else if (ignore <= 0) {
 					// May check here.
-					if (expr[i] == '-' && (i == 0 || expr[i - 1] == '(' || expr[i - 1] == ',' || expr[i - 1] == ' ')) {
+					if (expr[i] == '-' && (i == 0 || (priority(expr[i-1]) >= 0) || expr[i - 1] == ',' || expr[i - 1] == ' ')) {
 						if (i > 0 && (expr[i - 1] == ',' || expr[i - 1] == ' ')) {
 							// It's the beginning of function parameters!
 							operand += expr[i];
