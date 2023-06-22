@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
 	ip.in_debug = false;
 	ip.no_lib = false;
 #endif
-	string version_info = string("BlueBetter Interpreter\nVersion 1.26\nCompiled on ") + __DATE__ + " " + __TIME__;
+	string version_info = string("BlueBetter Interpreter\nVersion 1.27\nCompiled on ") + __DATE__ + " " + __TIME__;
 #pragma endregion
 	// End
 
