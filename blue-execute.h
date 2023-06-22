@@ -2024,11 +2024,21 @@ else if_have_additional_op('<') {
 					}
 					else if (op == "binary_read") {
 						// file binary_read [store list]=[var]
+						// TODO:
+						// file binary_read [store list]=[var]<,[max_length]>
+						// (With no limit, it'll read to the end)
 						codexec3 = split(codexec2[1], '=', 1);
-						int fid = calculate(codexec3[1], myenv).numeric;
+						vector<string> codexec4 = split(codexec3[1], ',', 1);
+						int fid = calculate(codexec4[0], myenv).numeric;
 						bool rs = files.count(fid) ? feof(files[fid]) : 0;
 						if (files.count(fid) && !rs) {
 							size_t len = getLength(fid);
+							if (codexec4.size() >= 2) {
+								int lelim = calculate(codexec4[1], myenv).numeric;
+								if (lelim > 0) {
+									len = lelim;
+								}
+							}
 							char *buf = new char[len + 2];
 							fread(buf, sizeof(char), len, files[fid]);
 							//if (codexec3[0].find(":") != string::npos) {

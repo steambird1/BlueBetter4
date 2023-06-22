@@ -137,6 +137,9 @@ class binary_reader:
 	inherits reader
 	function open fn:
 		run this._basic_file@open fn,"rb"
+	function read_binary length:
+		file binary_read tmp=this.handle,length
+		return tmp
 	function read_binary_to_end:
 		file binary_read tmp=this.handle
 		return tmp
