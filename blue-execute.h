@@ -908,7 +908,7 @@ else if_have_additional_op('<') {
 				val.push(pres);
 			}
 		};
-
+		bool in_function = false;	// space enters function, any operator with no ignore exits.
 		for (size_t i = 0; i < expr.length(); i++) {
 			if (expr[i] == '"' && (!dmode)) qmode = !qmode;
 			if (expr[i] == '\\' && (!dmode)) dmode = true;
@@ -918,7 +918,10 @@ else if_have_additional_op('<') {
 			if (expr[i] == '^' && (i == 0 || expr[i - 1] == '(' || expr[i - 1] == ',' || expr[i - 1] == ' ')) {
 				my_pr = -1;	// Not to regard it as an operator
 			}
-			if (my_pr >= 0 && (!qmode) && (!dmode)) {
+			if (expr[i] == ' ' && (!qmode) && (!dmode)) {
+				in_function = true;
+			}
+			if (my_pr >= 0 && (!qmode) && (!dmode)) {	// A function can't end with ()
 				if (expr[i] == '(') {
 					// Here should be operator previously.
 					int t = 1;
@@ -950,7 +953,7 @@ else if_have_additional_op('<') {
 							intValue pres = primary_calculate(v2, mc, v1, vm);
 							val.push(pres);
 						}
-						op.pop();	// '('
+						op.pop();
 						operand = "";
 					}
 					else {
@@ -959,7 +962,8 @@ else if_have_additional_op('<') {
 					}
 
 				}
-				else if (ignore <= 0) {
+				else if (ignore <= 0) {	// This can't have in_function specifier, or you can never exit
+					in_function = false;// Actually, any operator can lead to this
 					// May check here.
 					if (expr[i] == '-' && (i == 0 || (priority(expr[i-1]) >= 0) || expr[i - 1] == ',' || expr[i - 1] == ' ')) {
 						if (i > 0 && (expr[i - 1] == ',' || expr[i - 1] == ' ')) {
@@ -1045,7 +1049,7 @@ else if_have_additional_op('<') {
 				}
 
 			}
-			else if (i > 0 && expr[i] == '.' && expr[i - 1] == ')') {
+			else if (i > 0 && expr[i] == '.' && expr[i - 1] == ')' && (ignore <= 0) && (!in_function)) {
 				// Should have operand clear. Dealling with non-operator '.'
 				auto obj = val.top();
 				if (obj.isObject) {
@@ -2832,4 +2836,3 @@ else if_have_additional_op('<') {
 	
 
 };
-
