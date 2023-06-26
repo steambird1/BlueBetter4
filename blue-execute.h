@@ -349,7 +349,13 @@ public:
 			endout();
 			return;
 		}
-		myenv.set_global("err.value", raiseValue);
+		if (raiseValue.isObject) {
+			myenv.global_deserial("err.value", raiseValue.serial_data);
+		}
+		else {
+			myenv.set_global("err.value", raiseValue);
+		}
+		
 		myenv.set_global("err.source", intValue(source_function));
 		myenv.set_global("err.line", intValue(source_line));
 		myenv.set_global("err.id", intValue(error_id));
@@ -897,13 +903,10 @@ else if_have_additional_op('<') {
 			while ((!op.empty()) && (op_pr = priority(op.top())) >= my_pr) {	 // Therefore we changes right-to-left to left-to-right
 				intValue v1, v2;
 				string mc = op.top();
-				op.pop();
+				safe_popper(op, myenv, "Calculation");	//op.pop();
 				v1 = val.top();
-
-
-				val.pop();
-				v2 = val.top();
-				val.pop();
+				if (safe_popper(val, myenv, "Calculation", true))	v2 = val.top();	// Because I still need one
+				safe_popper(val, myenv, "Calculation");	//val.pop();
 				intValue pres = primary_calculate(v2, mc, v1, vm);
 				val.push(pres);
 			}
@@ -942,18 +945,16 @@ else if_have_additional_op('<') {
 						while ((!op.empty()) && (op.top() != "(")) {
 							intValue v1, v2;
 							string mc = op.top();
-							op.pop();
+							safe_popper(op, myenv, "Calculation");	//op.pop();
 
 							v1 = val.top();
 
-							val.pop();
-							v2 = val.top();
-
-							val.pop();
+							if (safe_popper(val, myenv, "Calculation", true))	v2 = val.top();	// Because I still need one
+							safe_popper(val, myenv, "Calculation");	//val.pop();
 							intValue pres = primary_calculate(v2, mc, v1, vm);
 							val.push(pres);
 						}
-						op.pop();
+						safe_popper(op, myenv, "Calculation");	//op.pop();
 						operand = "";
 					}
 					else {
@@ -980,7 +981,7 @@ else if_have_additional_op('<') {
 								// Getting the value from the stack
 								auto obj = val.top();
 								if (obj.isObject) {
-									val.pop();
+									safe_popper(val, myenv, "Calculation");
 									string gen = vm.generate();
 									vm.deserial(gen, obj.serial_data);
 									val.push(intValue(gen));
@@ -1007,28 +1008,28 @@ else if_have_additional_op('<') {
 								switch (expr[i - 1]) {
 								case '&':
 									if (expr[i] == '&') {
-										op.pop();
+										safe_popper(op, myenv, "Calculation");
 										op.push("&&");
 										goto end_of_pusher;
 									}
 									break;
 								case '|':
 									if (expr[i] == '|') {
-										op.pop();
+										safe_popper(op, myenv, "Calculation");
 										op.push("||");
 										goto end_of_pusher;
 									}
 									break;
 								case '<':
 									if (expr[i] == '>') {
-										op.pop();
+										safe_popper(op, myenv, "Calculation");
 										op.push("<>");
 										goto end_of_pusher;
 									}
 									// PASSTHROUGH FOR << or <=
 								case '>':
 									if (expr[i] == '=' || expr[i] == expr[i - 1]) {
-										op.pop();
+										safe_popper(op, myenv, "Calculation");
 										op.push({ expr[i - 1], expr[i] });
 										goto end_of_pusher;
 									}
@@ -1053,7 +1054,7 @@ else if_have_additional_op('<') {
 				// Should have operand clear. Dealling with non-operator '.'
 				auto obj = val.top();
 				if (obj.isObject) {
-					val.pop();
+					safe_popper(val, myenv, "Calculation");
 					string gen = vm.generate();
 					vm.deserial(gen, obj.serial_data);
 					operand += gen + '.';
@@ -2821,6 +2822,24 @@ else if_have_additional_op('<') {
 	varmap myenv;
 
 	private:
+
+		// Return true if ok, false if fail
+		template <typename Ty>
+		bool safe_popper(stack<Ty> &pop_stack, varmap &myenv, string error_info = "", bool extra_req = false) {
+			if (pop_stack.empty()) {
+				raiseError(null, myenv, "Runtime", 0, __LINE__, error_info + ": Popping empty stack");
+				return false;
+			}
+			else {
+				pop_stack.pop();
+				if (extra_req && pop_stack.empty()) {
+					raiseError(null, myenv, "Runtime", 0, __LINE__, error_info + ": Stack already empties");
+					return false;
+				}
+				return true;
+			}
+		}
+
 		int __spec = 0;
 		const int max_indent = 65536;
 
