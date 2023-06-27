@@ -25,6 +25,7 @@ class list:
 	function remove pos:
 		for i=pos~this._length-1:
 			set this:i=this:(i+1)
+			set this:(i+1)=null
 		set this._length=this._length-1
 	function insert pos data:
 		for i=this._length~pos~-1:
@@ -72,6 +73,42 @@ class list:
 			if (this:i)<tmp:
 				set tmp=this:i
 		return tmp
+
+class array:
+	inherits list
+	function generate sizes:
+		if sizes.length>0:
+			set this._length=sizes.0
+			sizes.remove 0
+			for i=0~this._length:
+				set this:i=new array
+				set ref=referof this:i
+				ref.generate sizes
+	function regenerate sizes:
+		if sizes.length>0:
+			set oldlen=this._length
+			set this._length=sizes.0
+			sizes.remove 0
+			if oldlen>this._length:
+				for i=0~this._length:
+					set ref=referof this:i
+					ref.regenerate sizes
+				for i=this._length~oldlen:
+					set this:i=null
+			else:
+				for i=0~oldlen:
+					set ref=referof this:i
+					ref.regenerate sizes
+				for i=oldlen~this._length:
+					set this:i=new array
+					set ref=referof this:i
+					ref.regenerate sizes
+	# dim: generate
+	function dim ...sizes:
+		this.generate sizes
+	# redim: re-generate but reserve as many elements as it can
+	function redim ...sizes:
+		this.regenerate sizes
 
 class _basic_file:
 	init:

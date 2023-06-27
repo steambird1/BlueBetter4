@@ -43,7 +43,8 @@ struct intValue {
 	enum output_level {
 		least,
 		normal,
-		most
+		most,
+		recursive
 	};
 
 	static output_level current_output;
@@ -128,8 +129,15 @@ struct intValue {
 						continue;
 					}
 					else if (i.second.isObject) {
-						setColor(FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-						cout << "<object>";
+						
+						if (current_output == recursive) {
+							i.second.output();
+						}
+						else {
+							setColor(FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+							cout << "<object>";
+						}
+						
 					}
 					else if (i.second.isNumeric) {
 						setColor(FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
