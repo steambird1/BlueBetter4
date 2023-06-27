@@ -283,7 +283,7 @@ public:
 		string operand = "", actual = "";
 		for (size_t i = 0; i < exp.length(); i++) {
 			int stack = 0;
-			bool disengage_stack = true;//, drive_break = false;
+			bool disengage_stack = true, drive_break = false;
 			string qu_expr = "";
 			switch (exp[i]) {
 			case '(': case ')':
@@ -300,16 +300,16 @@ public:
 						disengage_stack = false;
 						stack--;
 						break;
-					//case ':':						// Don't deal with it - to keep the behavior samely undefined
-					//	drive_break = true;
-					//	break;
+					case ':':	
+						if (stack <= 0) drive_break = true;
+						break;
 					default:
 						break;
 					}
-					//if (drive_break) {
-					//	drive_break = false;
-					//	break;
-					//}
+					if (drive_break) {
+						drive_break = false;
+						break;
+					}
 					if (stack >= 0) qu_expr += exp[i];	// To avoid irregular ")"
 				}
 				i--;	// Avoid another jump
@@ -689,6 +689,8 @@ public:
 	// Please notice special meanings.
 	intValue primary_calculate(intValue first, string op, intValue second, varmap &vm) {
 		if (!op.length()) return null;	// Can't be.
+		string fst;
+		intValue result;
 		switch (op[0]) {
 #define if_have_additional_op(oper) if (op.length() >= 2 && op[1] == oper)
 		case '(': case ')':
@@ -696,7 +698,18 @@ public:
 		case ':':
 			// As for this, 'first' should be direct var-name (* The final value is sometimes function!)
 			//return vm[first.str + "." + second.str];
-			return getValue(first.str + "." + second.str, vm, false, -1, true);
+			// Another protection layer
+			vm.push();
+			if (first.isObject) {
+				fst = vm.generate();
+				vm.deserial(fst, first.serial_data);
+			}
+			else {
+				fst = first.str;
+			}
+			result = getValue(fst + "." + second.str, vm, false, -1, true);
+			vm.pop();
+			return result;
 			break;
 		case '#':
 			// To get a position for string, or power for integer.
@@ -977,25 +990,18 @@ else if_have_additional_op('<') {
 					}
 					else {
 						if (expr[i] == ':') {
-							if (i > 0 && expr[i - 1] == ')') {
-								// Getting the value from the stack
-								auto obj = val.top();
-								if (obj.isObject) {
-									safe_popper(val, myenv, "Calculation");
-									string gen = vm.generate();
-									vm.deserial(gen, obj.serial_data);
-									val.push(intValue(gen));
+							if (op.empty() || (op.top() != ":")) {
+								if (operand.length()) {
+									val.push(intValue(operand));
 								}
 								else {
-									raise_gv_ce("Cannot get a member from non-object thing");
+									raise_gv_ce("Cannot use ':' without any object");
 								}
-
-							}
-							else if (operand.length()) {
-								val.push(intValue(operand));
 							}
 							else {
-								raise_gv_ce("Cannot use ':' without any object");
+								if (operand.length()) {	// Can't be things like || or &&
+									auto_push();
+								}
 							}
 							cur_neg = false;
 						}
