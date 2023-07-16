@@ -90,6 +90,7 @@ vector<string> parameterSplit(string expr) {
 		else if (i == '\\' && (!dmode)) {
 			dmode = true;
 			tmp += i;
+			continue;	// Prevent overriding
 		}
 		else if (i == '"' && (!dmode)) {
 			str = !str;

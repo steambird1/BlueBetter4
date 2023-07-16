@@ -2376,7 +2376,7 @@ else if_have_additional_op('<') {
 			}
 			if (codexec.size() >= 4) proh_rec = calculate(codexec[3], env).numeric;
 			auto cpre = codexec[0] + '.';
-			auto result = yieldDirectory(calculate(codexec[1], env).str, calculate(codexec[2], env).str, cpre);
+			auto result = yieldDirectory(calculate(codexec[1], env).str, calculate(codexec[2], env).str, cpre, proh_rec);
 			env.insert(result.mdata.begin(), result.mdata.end());
 			size_t counter = 0;
 			for (auto &i : result.files) {
