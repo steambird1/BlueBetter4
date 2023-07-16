@@ -1,6 +1,49 @@
 #include "blue.h"
 using namespace std;
 
+void console() {
+	cout << "BlueBetter Console (v1.0 for BlueBetter v1.30)" << endl;
+	cout << "Type 'call exit' to exit and 'call debug' to set up debug mode for further code." << endl << endl;
+	string curline, temp;
+	interpreter keep_ip = interpreter(false, false, { {"debug", interpreter::bcaller(
+		[](string arg, varmap &env, interpreter& interp) -> intValue {
+			interp.in_debug = !interp.in_debug;
+			cout << "Debug switch is now " << (interp.in_debug ? "on" : "off") << endl;
+			return null;
+		}
+	)} });
+	while (true) {
+		cout << ">>> ";
+		curline = "";
+		getline(cin, curline);
+		curline += '\n';
+		if (beginWith(curline, "function") || beginWith(curline, "class") || beginWith(curline, "property") || beginWith(curline, "error_handler:") 
+			|| beginWith(curline, "if") || beginWith(curline, "elif") || beginWith(curline, "else:") || beginWith(curline, "while")
+			|| beginWith(curline, "for")) {
+			int tabcount = 1;
+			string tabstr = "\t";
+			while (true) {
+				cout << "... " << tabstr;
+				getline(cin, temp);
+				if (!temp.length()) {
+					curline += tabstr + '\n';	// Windows format ?
+					if (tabcount <= 0) break;
+					tabcount--;
+					tabstr.pop_back();
+				}
+				else curline += tabstr + temp + '\n';
+				if (temp.length() && temp[temp.length() - 1] == ':') {
+					tabcount++;
+					tabstr.push_back('\t');
+				}
+			}
+		}
+		intValue ret = keep_ip.preRun(curline, { {"CONSOLE", intValue(1)} });
+		if (!ret.isNull) ret.output();
+		cout << endl;
+	}
+}
+
 int main(int argc, char* argv[]) {
 	standardPreparation();
 
@@ -9,8 +52,8 @@ int main(int argc, char* argv[]) {
 	// Test: Input code here:
 #pragma region Compiler Test Option
 #if _DEBUG
-	string code = "", file = "test6.blue";
-	ip.in_debug = true;
+	string code = "", file = "";
+	ip.in_debug = false;
 	ip.no_lib = false;
 
 	if (code.length()) {
@@ -31,7 +74,9 @@ int main(int argc, char* argv[]) {
 
 	if (argc <= 1 && !file.length() && !code.length()) {
 		cout << "Usage: " << argv[0] << " filename [options]";
-		return 1;
+		// Try entering console mode.
+		console();
+		return 0;
 	}
 
 #pragma region Read Options

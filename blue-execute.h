@@ -530,6 +530,10 @@ public:
 					argname = split(args, ' ');
 				}
 				if (args.length()) {
+					if (spl.size() < 2) {
+						raise_gv_ce(string("Warning: Parameter dismatches or function does not exist while calling function ") + spl[0]);
+						return null;
+					}
 					arg = parameterSplit(spl[1]);
 					if (!array_arg.length()) {
 						if (arg.size() != argname.size()) {
