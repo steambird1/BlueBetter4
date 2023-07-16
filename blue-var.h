@@ -290,9 +290,9 @@ public:
 		return ref.count(here_name);
 	}
 	void clean_referrer(string here_name) {
-		wait_for_perm();
+		//wait_for_perm();
 		if (have_referrer(here_name)) ref.erase(here_name);
-		release_perm();
+		//release_perm();	// No need at all!
 	}
 	// If return object serial, DON'T MODIFY IT !
 	// TODO: Add lock for it?

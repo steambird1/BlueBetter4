@@ -901,6 +901,7 @@ else if_have_additional_op('<') {
 		vm.push();
 
 		auto auto_push = [&]() {
+			// TODO: Automaticly scan if operand has structure like ^ [at first] or (^...)
 			if (cur_neg) {
 				val.push(getValue(operand, vm).negative());
 			}
