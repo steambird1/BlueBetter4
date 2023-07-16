@@ -386,6 +386,10 @@ function sqrt x:
 	call res=_maths_sqrt,x
 	return res
 
+function log x:
+	call res=_maths_log,x
+	return res
+
 preset pi=const acos 0.5*3
 
 function trim x:

@@ -2484,6 +2484,7 @@ else if_have_additional_op('<') {
 		math_extension(acos);
 		math_extension(atan);
 		math_extension(sqrt);
+		math_extension(log);
 		system_caller("mkdir", makeDirectory);
 		system_caller("md", makeDirectory);
 		system_caller("rmdir", removeDirectory);
