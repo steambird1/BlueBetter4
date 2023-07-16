@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
 	// End
 
 	if (argc <= 1 && !file.length() && !code.length()) {
-		cout << "Usage: " << argv[0] << " filename [options]";
+		cout << "Usage: " << argv[0] << " filename [options]" << endl;
 		// Try entering console mode.
 		console();
 		return 0;
