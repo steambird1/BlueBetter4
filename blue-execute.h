@@ -1276,7 +1276,7 @@ else if_have_additional_op('<') {
 					myenv[codexec2[0]] = myenv.traditional_serial(codexec3[1]);
 				}
 				else if (codexec2[1] == "clear" || codexec2[1] == "null") {
-					if (!preserve) myenv.tree_clean(codexec2[0], false);
+					if (!preserve) myenv.tree_clean(codexec2[0], false);	// This will clear everything, so no reserver
 				}
 				else if (beginWith(codexec2[1], "referof ")) {
 					vector<string> codexec3 = split(codexec2[1], ' ', 1);
@@ -1503,16 +1503,16 @@ else if_have_additional_op('<') {
 						if (external_op.length()) {
 							raise_ce("Warning: using operators like +=, -=, *= for object is meaningless");
 						}
-						if (!preserve) myenv.tree_clean(codexec2[0]);
+						if (!preserve) myenv.tree_clean(codexec2[0], true, true);
 						myenv.deserial(codexec2[0], res.serial_data);
 					}
 					else if (external_op.length()) {
 						intValue tmp = primary_calculate(myenv[codexec2[0]], external_op, res, myenv);
-						if (!preserve) myenv.tree_clean(codexec2[0]);
+						if (!preserve) myenv.tree_clean(codexec2[0], true, true);
 						myenv[codexec2[0]] = tmp;
 					}
 					else {
-						if (!preserve) myenv.tree_clean(codexec2[0]);
+						if (!preserve) myenv.tree_clean(codexec2[0], true, true);
 						myenv[codexec2[0]] = res;
 					}
 				}
@@ -1866,7 +1866,7 @@ else if_have_additional_op('<') {
 				auto ending = calculate(rangeobj[1], myenv).numeric;
 				if (myenv[codexec2[0]].numeric == ending) {
 					// Jump where end-of-loop
-					myenv.tree_clean(codexec2[0]);
+					myenv.tree_clean(codexec2[0]);	// This will end the life of the loop variable, so no savings
 					noroll = true; //  End of statements' life
 					int r;
 					while (execptr != codestream.size() - 1) {

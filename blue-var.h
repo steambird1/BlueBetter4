@@ -220,6 +220,11 @@ public:
 			return this->source->count(origin_name + expand);
 		}
 
+		void tree_clean(bool reserve_position = true) {
+			// The referrer should be saved if the referrer refers to a referrer
+			this->source->tree_clean(this->origin_name, reserve_position, true);
+		}
+
 		string origin_name;
 		varmap *source;
 	};
@@ -495,11 +500,17 @@ public:
 		this->set_global(name, null);
 		release_perm();
 	}
-	void tree_clean(string name, bool reserve_the_position = true) {
+	void tree_clean(string name, bool reserve_the_position = true, bool reserve_referrer = false) {
 		wait_for_perm();
 		if (have_referrer(name)) {
 			// Can't reserve any position (referrer is global ...)
-			this->clean_referrer(name);
+			// But sometimes (while setting, etc.), we need to reserve referrer,
+			if (reserve_referrer) {
+				this->ref[name].tree_clean(reserve_the_position);
+			}
+			else {
+				this->clean_referrer(name);
+			}
 			release_perm();
 			return;
 		}
