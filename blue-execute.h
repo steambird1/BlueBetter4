@@ -926,7 +926,13 @@ else if_have_additional_op('<') {
 				intValue v1, v2;
 				string mc = op.top();
 				safe_popper(op, myenv, "Calculation");	//op.pop();
-				v1 = val.top();
+				if (!val.empty()) {
+					v1 = val.top();
+				}
+				else {
+					raise_gv_ce("Operator missing");
+					v1 = null;	// This is not a good choice
+				}
 				if (safe_popper(val, myenv, "Calculation", true))	v2 = val.top();	// Because I still need one
 				safe_popper(val, myenv, "Calculation");	//val.pop();
 				intValue pres = primary_calculate(v2, mc, v1, vm);
@@ -969,8 +975,14 @@ else if_have_additional_op('<') {
 							string mc = op.top();
 							safe_popper(op, myenv, "Calculation");	//op.pop();
 
-							v1 = val.top();
-
+							if (!val.empty()) {
+								v1 = val.top();
+							}
+							else {
+								raise_gv_ce("Operator missing");
+								v1 = null;	// This is not a good choice
+							}
+							
 							if (safe_popper(val, myenv, "Calculation", true))	v2 = val.top();	// Because I still need one
 							safe_popper(val, myenv, "Calculation");	//val.pop();
 							intValue pres = primary_calculate(v2, mc, v1, vm);
@@ -1067,15 +1079,19 @@ else if_have_additional_op('<') {
 			}
 			else if (i > 0 && expr[i] == '.' && expr[i - 1] == ')' && (ignore <= 0) && (!in_function)) {
 				// Should have operand clear. Dealling with non-operator '.'
-				auto obj = val.top();
-				if (obj.isObject) {
-					safe_popper(val, myenv, "Calculation");
-					string gen = vm.generate();
-					vm.deserial(gen, obj.serial_data);
-					operand += gen + '.';
-				}
-				else {
-					raise_gv_ce("Cannot get a member from non-object thing");
+				if (val.empty()) {
+					raise_gv_ce("Cannot get a member from null");
+				} else {
+					auto obj = val.top();
+					if (obj.isObject) {
+						safe_popper(val, myenv, "Calculation");
+						string gen = vm.generate();
+						vm.deserial(gen, obj.serial_data);
+						operand += gen + '.';
+					}
+					else {
+						raise_gv_ce("Cannot get a member from non-object thing");
+					}
 				}
 			}
 			else {
@@ -1088,6 +1104,7 @@ else if_have_additional_op('<') {
 		}
 		auto_pop();
 		vm.pop();			// Reverting
+		if (val.empty()) return null;
 		return val.top();
 	}
 
