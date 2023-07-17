@@ -2362,7 +2362,7 @@ else if_have_additional_op('<') {
 		myenv.set_global("thread_state.not_joinable", intValue(thread_status::not_joinable), true);
 		// Replacable:
 		myenv.set_global("err.__type__", intValue("exception"));			// Error information
-		myenv.set_global("__error_handler__", intValue("call set_color,14\nprint \"On \"+err.source+\", Line \"+err.line+LF+err.description+LF+err.value+LF\ncall set_color,7"));	// Preset error handler
+		myenv.set_global("__error_handler__", intValue("call set_color,14\nprint \"On \"+err.source+\", Line \"+err.line+LF+err.description+LF+err.value+LF\ncall set_color\n"));	// Preset error handler
 		// End of replacable
 		myenv.set_global("__file__", intValue(env_name), true);
 		myenv.set_global("system_type", intValue(environ_type), true);
@@ -2389,7 +2389,16 @@ else if_have_additional_op('<') {
 			return null;
 		};
 		intcalls["set_color"] = [this](string args, varmap &env) -> intValue {
-			setColor(DWORD(calculate(args, env).numeric));
+			intValue res = calculate(args, env);
+			if (res.isNull) {
+				setColor(7);	// Default color
+#if !defined(_WIN32)
+				printf("\033[0m");
+#endif
+			} else {
+				setColor(DWORD(res.numeric));
+			}
+			
 			return null;
 		};
 		intcalls["dir"] = [this](string args, varmap &env) -> intValue {
