@@ -428,7 +428,7 @@ public:
 					varmap tvm;
 					tvm.push();
 					if (myenv[spl[1] + ".__must_inherit__"].str == "1" || myenv[spl[1] + ".__shared__"].str == "1") {
-						raise_ce(string("Warning: class ") + spl[1] + " is not allowed to create object.");
+						raise_gv_ce(string("Warning: class ") + spl[1] + " is not allowed to create object.");
 						return null;
 					}
 					generateClass("__temp_new", spl[1], tvm);
