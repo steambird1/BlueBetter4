@@ -2391,9 +2391,12 @@ else if_have_additional_op('<') {
 		intcalls["set_color"] = [this](string args, varmap &env) -> intValue {
 			intValue res = calculate(args, env);
 			if (res.isNull) {
-				setColor(7);	// Default color
+				
 #if !defined(_WIN32)
 				printf("\033[0m");
+				setColor(15);
+#else
+				setColor(7);	// Default color
 #endif
 			} else {
 				setColor(DWORD(res.numeric));
