@@ -256,6 +256,9 @@ paket-files/
 # CodeRush
 .cr/
 
+# Compiled
+main
+
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc

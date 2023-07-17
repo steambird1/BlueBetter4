@@ -427,6 +427,10 @@ public:
 					// Object creation
 					varmap tvm;
 					tvm.push();
+					if (myenv[spl[1] + ".__must_inherit__"].str == "1" || myenv[spl[1] + ".__shared__"].str == "1") {
+						raise_gv_ce(string("Warning: class ") + spl[1] + " is not allowed to create object.");
+						return null;
+					}
 					generateClass("__temp_new", spl[1], tvm);
 					return tvm["__temp_new"];
 				}
@@ -922,7 +926,13 @@ else if_have_additional_op('<') {
 				intValue v1, v2;
 				string mc = op.top();
 				safe_popper(op, myenv, "Calculation");	//op.pop();
-				v1 = val.top();
+				if (!val.empty()) {
+					v1 = val.top();
+				}
+				else {
+					raise_gv_ce("Operator missing");
+					v1 = null;	// This is not a good choice
+				}
 				if (safe_popper(val, myenv, "Calculation", true))	v2 = val.top();	// Because I still need one
 				safe_popper(val, myenv, "Calculation");	//val.pop();
 				intValue pres = primary_calculate(v2, mc, v1, vm);
@@ -965,8 +975,14 @@ else if_have_additional_op('<') {
 							string mc = op.top();
 							safe_popper(op, myenv, "Calculation");	//op.pop();
 
-							v1 = val.top();
-
+							if (!val.empty()) {
+								v1 = val.top();
+							}
+							else {
+								raise_gv_ce("Operator missing");
+								v1 = null;	// This is not a good choice
+							}
+							
 							if (safe_popper(val, myenv, "Calculation", true))	v2 = val.top();	// Because I still need one
 							safe_popper(val, myenv, "Calculation");	//val.pop();
 							intValue pres = primary_calculate(v2, mc, v1, vm);
@@ -1063,15 +1079,19 @@ else if_have_additional_op('<') {
 			}
 			else if (i > 0 && expr[i] == '.' && expr[i - 1] == ')' && (ignore <= 0) && (!in_function)) {
 				// Should have operand clear. Dealling with non-operator '.'
-				auto obj = val.top();
-				if (obj.isObject) {
-					safe_popper(val, myenv, "Calculation");
-					string gen = vm.generate();
-					vm.deserial(gen, obj.serial_data);
-					operand += gen + '.';
-				}
-				else {
-					raise_gv_ce("Cannot get a member from non-object thing");
+				if (val.empty()) {
+					raise_gv_ce("Cannot get a member from null");
+				} else {
+					auto obj = val.top();
+					if (obj.isObject) {
+						safe_popper(val, myenv, "Calculation");
+						string gen = vm.generate();
+						vm.deserial(gen, obj.serial_data);
+						operand += gen + '.';
+					}
+					else {
+						raise_gv_ce("Cannot get a member from non-object thing");
+					}
 				}
 			}
 			else {
@@ -1084,6 +1104,7 @@ else if_have_additional_op('<') {
 		}
 		auto_pop();
 		vm.pop();			// Reverting
+		if (val.empty()) return null;
 		return val.top();
 	}
 
@@ -2341,7 +2362,7 @@ else if_have_additional_op('<') {
 		myenv.set_global("thread_state.not_joinable", intValue(thread_status::not_joinable), true);
 		// Replacable:
 		myenv.set_global("err.__type__", intValue("exception"));			// Error information
-		myenv.set_global("__error_handler__", intValue("call set_color,14\nprint \"On \"+err.source+\", Line \"+err.line+LF+err.description+LF+err.value+LF\ncall set_color,7"));	// Preset error handler
+		myenv.set_global("__error_handler__", intValue("call set_color,14\nprint \"On \"+err.source+\", Line \"+err.line+LF+err.description+LF+err.value+LF\ncall set_color\n"));	// Preset error handler
 		// End of replacable
 		myenv.set_global("__file__", intValue(env_name), true);
 		myenv.set_global("system_type", intValue(environ_type), true);
@@ -2368,7 +2389,19 @@ else if_have_additional_op('<') {
 			return null;
 		};
 		intcalls["set_color"] = [this](string args, varmap &env) -> intValue {
-			setColor(DWORD(calculate(args, env).numeric));
+			intValue res = calculate(args, env);
+			if (res.isNull) {
+				
+#if !defined(_WIN32)
+				printf("\033[0m");
+				setColor(15);
+#else
+				setColor(7);	// Default color
+#endif
+			} else {
+				setColor(DWORD(res.numeric));
+			}
+			
 			return null;
 		};
 		intcalls["dir"] = [this](string args, varmap &env) -> intValue {
