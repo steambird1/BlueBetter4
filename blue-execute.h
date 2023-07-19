@@ -2393,8 +2393,8 @@ else if_have_additional_op('<') {
 			if (res.isNull) {
 				
 #if !defined(_WIN32)
-				printf("\033[0m");
 				setColor(15);
+				printf("\033[0m");
 #else
 				setColor(7);	// Default color
 #endif
